@@ -1,0 +1,12 @@
+*#
+=======
+*.swp
+*~
+*.log
+*.config
+!example.config
+/backup/*
+/doc/*
+/postgresql/keys/*
+/postgresql/*.bat
+/postgresql/test.sql
