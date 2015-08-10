@@ -1346,7 +1346,8 @@ def fill_loop_by_room():
             else:
                 sleep_time = REQUEST_SLEEP * random.random()
                 logging.info("---- sleeping " + str(sleep_time) + " seconds...")
-                logging.info("---- Currently using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
+                if HTTP_PROXY_LIST is not None:
+                    logging.info("---- Currently using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
                 time.sleep(sleep_time) # be nice
                 if (ws_get_room_info(room_id, survey_id, FLAGS_ADD)):
                     room_count += 1
