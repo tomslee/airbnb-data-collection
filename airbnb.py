@@ -96,11 +96,16 @@ def init():
     try:
         config = configparser.ConfigParser()
         # look for username.config on both Windows (USERNAME) and Linux (USER)
-        try:
+        if os.name == "nt":
             username = os.environ['USERNAME']
-        except KeyError:
+        else:
             username = os.environ['USER']
-        config.read(username + ".config")
+        config_file = username + ".config"
+        if not os.path.isfile(config_file):
+            logging.error("Configuration file " + config_file + 
+            " not found.")
+            sys.exit()
+        config.read(config_file)
         # database
         global DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
         DB_HOST = config["DATABASE"]["db_host"]
