@@ -3,6 +3,7 @@
 *.swp
 *~
 *.log
+*.out
 *.config
 !example.config
 /backup/*
