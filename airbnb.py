@@ -778,7 +778,13 @@ def ws_get_page(url):
             except urllib.error.HTTPError as he:
                 if http_proxy is None:
                     logger.error("HTTP error " + str(he.code))                    
-                    raise
+                    # fill the proxy list again, and wait a long time, then restart
+                    init()
+                    logging.info("Waiting to re-initialize: " 
+                        + str(RE_INIT_SLEEP_TIME) 
+                        + " seconds...")
+                    time.sleep(RE_INIT_SLEEP_TIME) # be nice
+                    return False
                 logger.error("HTTP error " + str(he.code) + " for proxy " + http_proxy)
                 if he.code == 503:
                     if random.random() < 0.5:
@@ -843,6 +849,9 @@ def ws_get_room_info(room_id, survey_id, flag):
     except UnicodeEncodeError as uee:
         logger.error("UnicodeEncodeError Exception at " + 
                 str(uee.object[uee.start:uee.end])) 
+    except urllib.http.HTTPError:
+        # mainly 503 errors: handle them above here
+        raise
     except Exception as e:
         logger.error("Failed to get room " + str(room_id) + " from web site.")
         logger.error("Exception: " + str(type(e)))
@@ -1354,10 +1363,14 @@ def fill_loop_by_room():
                 if HTTP_PROXY_LIST is not None:
                     logging.info("---- Currently using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
                 time.sleep(sleep_time) # be nice
-                if (ws_get_room_info(room_id, survey_id, FLAGS_ADD)):
+                if ws_get_room_info(room_id, survey_id, FLAGS_ADD):
                     room_count += 1
                 else: #Airbnb now seems to return nothing if a room has gone
                     db_save_room_as_deleted(room_id, survey_id)        
+        except urllib.error.HTTPError as he:
+            if he.code == 503:
+                # failed to get a web page. Try again
+                pass
         except AttributeError as ae:
             logger.error("Attribute error: marking room as deleted.")
             db_save_room_as_deleted(room_id, survey_id)
@@ -1426,7 +1439,7 @@ def search_survey(survey_id, flag):
         (search_area_id, search_area_name) = \
             db_get_search_area_from_survey_id(survey_id)
         if search_area_name==SEARCH_AREA_GLOBAL:
-            "Special case"
+            # "Special case"
             room_count = 0
             while room_count < FILL_MAX_ROOM_COUNT:
                 try:
@@ -1434,8 +1447,12 @@ def search_survey(survey_id, flag):
                     if room_id is None:
                         break
                     else:
-                        time.sleep(REQUEST_SLEEP * random.random()) # be nice
-                        if(ws_get_room_info(room_id, survey_id, FLAGS_ADD)):
+                        sleep_time = REQUEST_SLEEP * random.random()
+                        logging.info("---- sleeping " + str(sleep_time) + " seconds...")
+                        if HTTP_PROXY_LIST is not None:
+                            logging.info("---- Currently using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
+                        time.sleep(sleep_time) # be nice
+                        if (ws_get_room_info(room_id, survey_id, FLAGS_ADD)):
                             room_count += 1
                 except AttributeError as ae:
                     logger.error("Attribute error: marking room as deleted.")
