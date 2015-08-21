@@ -83,7 +83,7 @@ console_handler.setFormatter(ch_formatter)
 logger.addHandler(console_handler)
 
 fl_formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s%(message)s')
-filelog_handler = logging.FileHandler("run.log")
+filelog_handler = logging.FileHandler("run.log", encoding="utf-8")
 filelog_handler.setLevel(logging.INFO)
 filelog_handler.setFormatter(fl_formatter)
 logger.addHandler(filelog_handler)
@@ -145,6 +145,9 @@ def connect():
                 database=DB_NAME)
             _conn.set_client_encoding('UTF8')
         return _conn
+    except psycopg2.OperationalError as pgoe:
+        logger.error(pgoe.message)
+        raise
     except:
         logger.error(
             "Failed to connect to database." +
@@ -435,12 +438,12 @@ def db_get_room_to_fill():
                     + " rooms left to fill --")
         return (room_id, survey_id)
     except TypeError:
-        cur.close()
         logger.info("-- Finishing: no unfilled rooms in database --")
+        conn = None
         return (None, None)
     except:
         logger.error("Error retrieving room to fill from db")
-        cur.close()
+        conn = None
         raise
 
 
@@ -580,6 +583,14 @@ def db_save_room_info(room_info, insert_replace_flag):
             cur.close()
             logger.info("Saved room " + str(room_id))
             return
+        except psycopg2.DatabaseError as pgdbe:
+            # connection closed
+            logger.error("Database error: set conn to None and resume")
+            conn = None
+        except psycopg2.InterfaceError as pgie:
+            # connection closed
+            logger.error("Interface error: set conn to None and resume")
+            conn = None
         except psycopg2.Error as pge:
             cur.close()
             conn.rollback()
@@ -803,8 +814,20 @@ def ws_get_page(url):
                         return False
                     else:
                         raise
+            except NameError as ne:
+                logger.error("NameError: " + ne.message)
+                if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
+                    logger.error("Probable connectivity problem retrieving " +
+                                 "web page " + url)
+                    #if airbnb_is_live():
+                    #    return False
+                    #else:
+                    #    raise 
+                else:
+                    pass
             except Exception as e:
-                logger.error("Failed attempt to retrieve web page " + url)
+                logger.error("Failed to retrieve web page " + url)
+                logger.error("Exception type: " + type(exception).__name__)
                 if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
                     logger.error("Probable connectivity problem retrieving " +
                                  "web page " + url)
@@ -818,6 +841,9 @@ def ws_get_page(url):
     except urllib.error.URLError:
         logger.error("URLError retrieving page")
         raise
+    except NameError as ne:
+        logger.error("NameError retrieving page")
+        return False
     except AttributeError as ae:
         logger.error("AttributeError retrieving page")
         return False
@@ -865,7 +891,7 @@ def ws_get_search_page_info(survey_id, search_area_name, room_type,
             room_type + ", " +
             str(neighborhood) + ", " +
             str(guests) + " guests, " +
-            "page " + str(page_number))
+            "page " + str(page_number)  )
         url = search_page_url(search_area_name, guests,
                               neighborhood, room_type,
                               page_number)
@@ -921,6 +947,14 @@ def ws_get_search_page_info(survey_id, search_area_name, room_type,
         else:
             logger.info("No rooms found")
         return room_count
+    except UnicodeEncodeError:
+        logger.error("UnicodeEncodeError: you may want to  set PYTHONIOENCODING=utf-8")
+        #if sys.version_info >= (3,):
+        #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
+        #else:
+        #    logger.info(s.encode('utf8'))
+        # unhandled at the moment
+        pass
     except:
         raise
 

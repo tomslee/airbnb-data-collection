@@ -11,3 +11,4 @@
 /postgresql/keys/*
 /postgresql/*.bat
 /postgresql/test.sql
+/postgresql/shapefiles/*
