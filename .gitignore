@@ -8,7 +8,10 @@
 !example.config
 /backup/*
 /doc/*
+/hvs/*
+/unite/*
 /postgresql/keys/*
 /postgresql/*.bat
 /postgresql/test.sql
 /postgresql/shapefiles/*
+

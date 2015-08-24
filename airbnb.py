@@ -424,18 +424,18 @@ def db_get_room_to_fill():
         cur.execute(sql)
         (room_id, survey_id) = cur.fetchone()
         cur.close()
-        sql = """
-        select count(*)
-        from room
-        where price is null
-        and (deleted = 0 or deleted is null)
-        """
-        cur = conn.cursor()
-        cur.execute(sql)
-        (rooms_left) = cur.fetchone()
-        cur.close()
-        logger.info("-- " + str(rooms_left[0])
-                    + " rooms left to fill --")
+        #sql = """
+        #select count(*)
+        #from room
+        #where price is null
+        #and (deleted = 0 or deleted is null)
+        #"""
+        #cur = conn.cursor()
+        #cur.execute(sql)
+        #(rooms_left) = cur.fetchone()
+        #cur.close()
+        #logger.info("-- " + str(rooms_left[0])
+                    #+ " rooms left to fill --")
         return (room_id, survey_id)
     except TypeError:
         logger.info("-- Finishing: no unfilled rooms in database --")
