@@ -23,7 +23,7 @@ city = "New York"
 # Get the surveys associated with this city
 survey_ids = [11, 49, 56, 67, 100, 105, 129,]
 survey_dates = ["2014-05-10", "2014-08-31", "2014-10-17", "2014-12-02",
-              "2015-02-27", "2015-03-14", "2014-08-10"]
+              "2015-02-27", "2015-03-14", "2015-08-10"]
 #survey_ids = [11, ]
 sql = """
         select room_id, host_id, room_type, 

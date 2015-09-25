@@ -5,11 +5,17 @@
 *.log
 *.out
 *.config
+*.zip
 !example.config
 /backup/*
 /doc/*
 /hvs/*
+/kml/*
+/public/*
+/shapefiles/*
+/spreadsheets/*
 /unite/*
+/postgresql/backups/*
 /postgresql/keys/*
 /postgresql/*.bat
 /postgresql/test.sql
