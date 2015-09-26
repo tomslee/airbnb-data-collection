@@ -59,6 +59,7 @@ URL_ROOT = "http://www.airbnb.com/"
 URL_ROOM_ROOT =URL_ROOT + "rooms/"
 URL_HOST_ROOT = URL_ROOT + "users/show/"
 URL_SEARCH_ROOT = URL_ROOT + "s/"
+
 # Other internal constants
 SEARCH_AREA_GLOBAL="UNKNOWN" # special case: sample listings globally
 FLAGS_ADD = 1
@@ -66,6 +67,8 @@ FLAGS_PRINT = 9
 FLAGS_INSERT_REPLACE = True
 FLAGS_INSERT_NO_REPLACE = False
 RE_INIT_SLEEP_TIME = 1800 # seconds
+SEARCH_BY_NEIGHBORHOOD=0 # default
+SEARCH_BY_ZIPCODE=1
 
 
 # Script version
@@ -1153,27 +1156,28 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
         # new version Dec 2014
         temp3 = tree.xpath(
                 "//div[@class='col-md-6']"
-                "/div[contains(text(),'Accommodates:')]"
-                "/strong/text()"
+                "//div/span[text()[contains(.,'Accommodates:')]]"
+                "/../strong/text()"
                 )
-        temp2 = tree.xpath(
-                "//div[@id='summary']"
-                "//div[@class='panel-body']/div[@class='row'][2]"
-                "/div[@class='col-9']"
-                "//div[@class='col-3'][2]"
-                "/text()"
-                )
-        temp1 = tree.xpath(
-            "//table[@id='description_details']"
-            "//td[contains(text(),'Accommodates:')]"
-            "/following-sibling::td/descendant::text()"
-            )
+        #temp2 = tree.xpath(
+                #"//div[@id='summary']"
+                #"//div[@class='panel-body']/div[@class='row'][2]"
+                #"/div[@class='col-9']"
+                #"//div[@class='col-3'][2]"
+                #"/text()"
+                #)
+        #temp1 = tree.xpath(
+            #"//table[@id='description_details']"
+            #"//td[contains(text(),'Accommodates:')]"
+            #"/following-sibling::td/descendant::text()"
+            #)
+        print ("Accommodates: ", str(len(temp3)), str(len(temp2)), str(len(temp1)))
         if len(temp3) > 0:
             accommodates = temp3[0].strip()
-        elif len(temp2) > 0:
-            accommodates = temp2[0].strip()
-        elif len(temp1) > 0:
-            accommodates = temp1[0]
+        #elif len(temp2) > 0:
+            #accommodates = temp2[0].strip()
+        #elif len(temp1) > 0:
+            #accommodates = temp1[0]
         else:
             logger.warning("No accommodates found for room "
                            + str(room_id))
@@ -1185,26 +1189,26 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
         # new version Dec 2014
         temp3 = tree.xpath(
             "//div[@class='col-md-6']"
-            "/div[contains(text(),'Bedrooms:')]"
-            "/strong/text()"
+            "/div/span[text()[contains(.,'Bedrooms:')]]"
+            "/../strong/text()"
             )
-        temp2 = tree.xpath(
-            "//div[@id='summary']"
-            "//div[@class='panel-body']/div[@class='row'][2]"
-            "/div[@class='col-9']"
-            "//div[@class='col-3'][3]"
-            "/text()"
-            )
-        temp1 = tree.xpath(
-            "//table[@id='description_details']"
-            "//td[contains(text(),'Bedrooms:')]"
-            "/following-sibling::td/descendant::text()")
+        #temp2 = tree.xpath(
+            #"//div[@id='summary']"
+            #"//div[@class='panel-body']/div[@class='row'][2]"
+            #"/div[@class='col-9']"
+            #"//div[@class='col-3'][3]"
+            #"/text()"
+            #)
+        #temp1 = tree.xpath(
+            #"//table[@id='description_details']"
+            #"//td[contains(text(),'Bedrooms:')]"
+            #"/following-sibling::td/descendant::text()")
         if len(temp3) > 0:
             bedrooms = temp3[0].strip()
-        elif len(temp2) > 0:
-            bedrooms = temp2[0].strip()
-        elif len(temp1) > 0:
-            bedrooms = temp1[0].split('+')[0]
+        #elif len(temp2) > 0:
+            #bedrooms = temp2[0].strip()
+        #elif len(temp1) > 0:
+            #bedrooms = temp1[0].split('+')[0]
         else:
             logger.warning("No bedrooms found for room " + str(room_id))
         if bedrooms != None:
@@ -1214,26 +1218,26 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
         # -- bathrooms --
         temp3 = tree.xpath(
             "//div[@class='col-md-6']"
-            "/div[contains(text(),'Bathrooms')]"
-            "/strong/text()"
+            "/div/span[text()[contains(.,'Bathrooms:')]]"
+            "/../strong/text()"
             )
-        temp2 = tree.xpath(
-            "//div[@id='details-column']"
-            "//div[text()[contains(.,'Bathrooms:')]]"
-            "/strong/text()"
-            )
-        temp1 = tree.xpath(
-            "//table[@id='description_details']"
-            "//td[text()[contains(.,'Bathrooms:')]]"
-            "/following-sibling::td/descendant::text()"
-            )
+        #temp2 = tree.xpath(
+            #"//div[@id='details-column']"
+            #"//div[text()[contains(.,'Bathrooms:')]]"
+            #"/strong/text()"
+            #)
+        #temp1 = tree.xpath(
+            #"//table[@id='description_details']"
+            #"//td[text()[contains(.,'Bathrooms:')]]"
+            #"/following-sibling::td/descendant::text()"
+            #)
         if len(temp3) > 0:
             bathrooms = temp3[0].strip()
-        if len(temp2) > 0:
-            bathrooms = temp2[0].strip()
-        elif len(temp1) > 0:
-            # try old page match
-            bathrooms = temp1[0].strip()
+        #if len(temp2) > 0:
+            #bathrooms = temp2[0].strip()
+        #elif len(temp1) > 0:
+            ## try old page match
+            #bathrooms = temp1[0].strip()
         else:
             logger.info("No bathrooms found for room " + str(room_id))
         if bathrooms != None:
@@ -1468,7 +1472,7 @@ def search_page_url(search_area_name, guests, neighborhood, room_type,
     return url
 
 
-def search_survey(survey_id, flag):
+def search_survey(survey_id, flag, search_by):
     try:
         (search_area_id, search_area_name) = \
             db_get_search_area_from_survey_id(survey_id)
@@ -1519,20 +1523,24 @@ def search_survey(survey_id, flag):
             cur.close()
             conn.commit()
 
-            # Loop over neighborhoods
-            neighborhoods = db_get_neighborhoods_from_search_area(search_area_id)
-            for room_type in (
-                "Private room",
-                "Entire home/apt",
-                "Shared room",
-                ):
-                logger.debug("Searching for %(rt)s" % {"rt": room_type})
-                if len(neighborhoods) > 0:
-                    search_loop_neighborhoods(neighborhoods, room_type,
-                                          survey_id, flag,
-                                          search_area_name)
-                else:
-                    search_neighborhood(None, room_type, survey_id,
+            # Loop over neighborhoods or zipcode
+            if search_by == SEARCH_BY_ZIPCODE:
+                zipcode = db_get_zipcodes_from_db(search_area_id)
+                pass
+            else:
+                neighborhoods = db_get_neighborhoods_from_search_area(search_area_id)
+                for room_type in (
+                    "Private room",
+                    "Entire home/apt",
+                    "Shared room",
+                    ):
+                    logger.debug("Searching for %(rt)s" % {"rt": room_type})
+                    if len(neighborhoods) > 0:
+                        search_loop_neighborhoods(neighborhoods, room_type,
+                                            survey_id, flag,
+                                            search_area_name)
+                    else:
+                        search_neighborhood(None, room_type, survey_id,
                                     flag, search_area_name)
     except KeyboardInterrupt:
         raise
@@ -1651,6 +1659,9 @@ def main():
     group.add_argument('-s', '--search',
                        metavar='survey_id', type=int,
                        help='search for rooms using survey survey_id')
+    group.add_argument('-sz', '--search_by_zip',
+                       metavar='survey_id', type=int,
+                       help='search for rooms using survey survey_id, by zipcode')
     group.add_argument('-v', '--version',
                        action='version',
                        version='%(prog)s, version SCRIPT_VERSION_NUMBER')
@@ -1660,7 +1671,9 @@ def main():
 
     try:
         if args.search:
-            search_survey(args.search, FLAGS_ADD)
+            search_survey(args.search, FLAGS_ADD, SEARCH_BY_NEIGHBORHOOD)
+        elif args.search_by_zip:
+            search_survey(args.search, FLAGS_ADD, SEARCH_BY_ZIPCODE)
         elif args.fill:
             fill_loop_by_room()
         elif args.addsearcharea:
@@ -1690,14 +1703,13 @@ def main():
         elif args.printroom:
             ws_get_room_info(args.printroom, None, FLAGS_PRINT)
         elif args.printsearch:
-            #page = ws_get_search_page(url)
-            search_survey(args.printsearch, FLAGS_PRINT)
+            search_survey(args.printsearch, FLAGS_PRINT, SEARCH_BY_NEIGHBORHOOD)
         else:
             parser.print_help()
     except KeyboardInterrupt:
         sys.exit()
     except SystemExit:
-        # sys.exit() called: don't logg a stack trace
+        # sys.exit() called: don't log a stack trace
         pass
     except:
         logger.exception("Top level exception handler: quitting.")
