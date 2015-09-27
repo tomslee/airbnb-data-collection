@@ -1171,7 +1171,6 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
             #"//td[contains(text(),'Accommodates:')]"
             #"/following-sibling::td/descendant::text()"
             #)
-        print ("Accommodates: ", str(len(temp3)), str(len(temp2)), str(len(temp1)))
         if len(temp3) > 0:
             accommodates = temp3[0].strip()
         #elif len(temp2) > 0:
@@ -1273,8 +1272,7 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
             minstay = minstay.split(' ')[0]
 
         # -- price --
-        # Find the price listed (which is returned in Cdn dollars)
-        # line 1496
+        # Price is returned in the currency where your request comes from
         temp2 = tree.xpath(
             "//meta[@itemprop='price']/@content"
             )
@@ -1292,7 +1290,7 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
             logger.info("No price found for room " + str(room_id))
         # Now find out if it's per night or per month (see if the per_night div
         # is hidden)
-        per_month = tree.xpath("//div[@id='per_night' and @class='hide']")
+        per_month = tree.xpath("//div[@class='js-per-night book-it__payment-period  hide']")
         if per_month:
             price = int(int(price) / 30)
 
