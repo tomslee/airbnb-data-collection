@@ -1156,42 +1156,27 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
                 logger.warning("No host_id found for room " + str(room_id))
 
         # -- room type --
+        # new page format 2015-09-30?
+        temp4 = tree.xpath(
+            "//div[@class='col-md-6']"
+            "/div/span[text()[contains(.,'Room type:')]]"
+            "/../strong/text()"
+            )
         # new page format 2014-12-26
-        temp3_entire = tree.xpath(
-            "//div[@id='summary']"
-            "//i[contains(concat(' ', @class, ' '), ' icon-entire-place ')]"
-            )
-        temp3_private = tree.xpath(
-            "//div[@id='summary']"
-            "//i[contains(concat(' ', @class, ' '), ' icon-private-room ')]"
-            )
-        temp3_shared = tree.xpath(
-            "//div[@id='summary']"
-            "//i[contains(concat(' ', @class, ' '), ' icon-shared-room ')]"
-            )
-        # updated format
-        temp2 = tree.xpath(
-            "//div[@id='summary']"
-            "//div[@class='panel-body']/div[@class='row'][2]"
-            "/div[@class='col-9']"
-            "//div[@class='col-3'][1]"
-            "/text()"
-            )
-        # try old page match
-        temp1 = tree.xpath(
-            "//table[@id='description_details']"
-            "//td[text()[contains(.,'Room type:')]]"
-            "/following-sibling::td/text()")
-        if len(temp3_entire) > 0:
-            room_type = "Entire home/apt"
-        elif len(temp3_private) > 0:
-            room_type = "Private room"
-        elif len(temp3_shared) > 0:
-            room_type = "Shared room"
-        elif len(temp2) > 0:
-            room_type = temp2[0].strip()
-        elif len(temp1) > 0:
-            room_type = temp1[0].strip()
+        #temp3_entire = tree.xpath(
+            #"//div[@id='summary']"
+            #"//i[contains(concat(' ', @class, ' '), ' icon-entire-place ')]"
+            #)
+        #temp3_private = tree.xpath(
+            #"//div[@id='summary']"
+            #"//i[contains(concat(' ', @class, ' '), ' icon-private-room ')]"
+            #)
+        #temp3_shared = tree.xpath(
+            #"//div[@id='summary']"
+            #"//i[contains(concat(' ', @class, ' '), ' icon-shared-room ')]"
+            #)
+        if len(temp4) > 0:
+            room_type = temp4[0].strip()
         else:
             room_type = 'Unknown'
             logger.warning("No room_type found for room " + str(room_id))
