@@ -499,7 +499,7 @@ def db_save_room_as_deleted(room_id, survey_id):
     try:
         conn = connect()
         sql = """update room 
-        set deleted = 1 
+        set deleted = 1, last_modified = now()::timestamp
         where room_id = %s 
         and survey_id = %s"""
         cur = conn.cursor()
@@ -534,7 +534,7 @@ def db_save_room_info(room_info, insert_replace_flag):
             room_exists = bool(cur.fetchone()[0])
             if room_exists and (deleted == 1):
                 sql = """update room 
-                       set deleted = %s
+                       set deleted = %s, last_modified = now()::timestamp
                        where room_id = %s
                        and survey_id = %s"""
                 cur.execute(sql, (1, room_id, survey_id,))
@@ -553,6 +553,7 @@ def db_save_room_info(room_info, insert_replace_flag):
                     bathrooms = %s,
                     price = %s,
                     deleted = %s,
+                    last_modified = now()::timestamp,
                     minstay = %s,
                     latitude = %s,
                     longitude = %s
