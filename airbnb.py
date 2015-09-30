@@ -342,6 +342,30 @@ def db_add_survey(search_area):
         raise
 
 
+def db_get_zipcodes_from_search_area(search_area_id):
+    try:
+        conn = connect()
+        cur = conn.cursor()
+        cur.execute("""
+        select zip
+        from zipcode_us z, search_area sa
+        where search_area_id = %s
+        and sa.name = z.county
+        """, (search_area_id,))
+        logger.info("X")
+        zipcodes = []
+        while True:
+            row = cur.fetchone()
+            if row is None:
+                break
+            zipcodes.append(row[0])
+        cur.close()
+        return zipcodes
+    except:
+        logger.error("Failed to retrieve zipcodes for search_area"
+                     + str(search_area_id))
+        raise
+
 def db_get_neighborhoods_from_search_area(search_area_id):
     try:
         conn = connect()
@@ -467,7 +491,7 @@ def db_get_search_area_from_survey_id(survey_id):
         raise
     except:
         cur.close()
-        logger.error("No search area for survey_id" + str(survey_id))
+        logger.error("No search area for survey_id " + str(survey_id))
         raise
 
 
@@ -643,6 +667,7 @@ def db_log_survey_search_page(survey_id, room_type, neighborhood_id,
         cur.execute(sql, page_info)
         cur.close()
         conn.commit()
+        logger.info("Survey search page logged for " + str(neighborhood_id))
         return True
     except psycopg2.Error as pge:
         logger.error(pge.pgerror)
@@ -886,6 +911,78 @@ def ws_get_room_info(room_id, survey_id, flag):
         logger.error("Exception: " + str(type(e)))
         raise
 
+def ws_get_search_page_info_zipcode(survey_id, search_area_name, room_type,
+                            zipcode, guests, page_number, flag):
+    try:
+        logger.info(
+            room_type + ", " +
+            str(zipcode) + ", " +
+            str(guests) + " guests, " +
+            "page " + str(page_number)  )
+        url = search_page_url(zipcode, guests,
+                              None, room_type,
+                              page_number)
+        sleep_time = REQUEST_SLEEP * random.random()
+        logging.info("-- sleeping " + str(sleep_time) + " seconds...")
+        time.sleep(sleep_time) # be nice
+        page = ws_get_page(url)
+        if page is False:
+            return 0
+        tree = html.fromstring(page)
+        room_elements = tree.xpath(
+            "//div[@class='listing']/@data-id"
+        )
+        logger.debug("Found " + str(len(room_elements)) + " rooms.")
+        room_count = len(room_elements)
+        if room_count > 0:
+            has_rooms = 1
+        else:
+            has_rooms = 0
+        if flag == FLAGS_ADD:
+            db_log_survey_search_page(survey_id, room_type,
+                                       zipcode, guests,
+                                       page_number, has_rooms)
+        if room_count > 0:
+            for room_element in room_elements:
+                room_id = int(room_element)
+                if room_id is not None:
+                    room_info = (
+                        room_id,
+                        None,  # host_id,
+                        room_type,  # room_type,
+                        None,  # country,
+                        None,  # city,
+                        None,  # neighborhood,
+                        None,  # address,
+                        None,  # reviews,
+                        None,  # overall_satisfaction
+                        None,  # accommodates
+                        None,  # bedrooms
+                        None,  # bathrooms
+                        None,  # price
+                        0,     # deleted
+                        None,  # minstay
+                        None,  # latitude
+                        None,  # longitude
+                        survey_id  # survey_id
+                        )
+                    if flag == FLAGS_ADD:
+                        db_save_room_info(room_info, FLAGS_INSERT_NO_REPLACE)
+                    elif flag == FLAGS_PRINT:
+                        print(room_info[2], room_info[0])
+        else:
+            logger.info("No rooms found")
+        return room_count
+    except UnicodeEncodeError:
+        logger.error("UnicodeEncodeError: you may want to  set PYTHONIOENCODING=utf-8")
+        #if sys.version_info >= (3,):
+        #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
+        #else:
+        #    logger.info(s.encode('utf8'))
+        # unhandled at the moment
+        pass
+    except:
+        raise
 
 def ws_get_search_page_info(survey_id, search_area_name, room_type,
                             neighborhood, guests, page_number, flag):
@@ -1415,8 +1512,8 @@ def fill_loop_by_room():
             raise
 
 
-def page_has_been_retrieved(survey_id, room_type, neighborhood, guests,
-                            page_number):
+def page_has_been_retrieved(survey_id, room_type, neighborhood_or_zipcode, guests,
+                            page_number, search_by):
     """
     Returns 1 if the page has been retrieved previously and has rooms
     Returns 0 if the page has been retrieved previously and has no rooms
@@ -1426,20 +1523,36 @@ def page_has_been_retrieved(survey_id, room_type, neighborhood, guests,
     cur = conn.cursor()
     has_rooms = 0
     try:
-        sql = """
-            select ssp.has_rooms
-            from survey_search_page ssp
-            join neighborhood nb
-            on ssp.neighborhood_id = nb.neighborhood_id
-            where survey_id = %s
-            and room_type = %s
-            and nb.name = %s
-            and guests = %s
-            and page_number = %s"""
-        cur.execute(sql, (survey_id, room_type, neighborhood, guests,
+        if search_by==SEARCH_BY_NEIGHBORHOOD:
+            neighborhood = neighborhood_or_zipcode
+            sql = """
+                select ssp.has_rooms
+                from survey_search_page ssp
+                join neighborhood nb
+                on ssp.neighborhood_id = nb.neighborhood_id
+                where survey_id = %s
+                and room_type = %s
+                and nb.name = %s
+                and guests = %s
+                and page_number = %s"""
+            cur.execute(sql, (survey_id, room_type, neighborhood, guests,
                           page_number))
-        has_rooms = cur.fetchone()[0]
-        logger.debug("has_rooms = " + str(has_rooms))
+            has_rooms = cur.fetchone()[0]
+            logger.debug("has_rooms = " + str(has_rooms) + " for neighborhood " + neighborhood)
+        else: # SEARCH_BY_ZIPCODE
+            zipcode = int(neighborhood_or_zipcode)
+            sql = """
+                select ssp.has_rooms
+                from survey_search_page ssp
+                where survey_id = %s
+                and room_type = %s
+                and neighborhood_id = %s
+                and guests = %s
+                and page_number = %s"""
+            cur.execute(sql, (survey_id, room_type, zipcode, guests,
+                          page_number))
+            has_rooms = cur.fetchone()[0]
+            logger.debug("has_rooms = " + str(has_rooms) + " for zipcode " + str(zipcode))
     except:
         has_rooms = -1
         logger.debug("page has not been retrieved previously")
@@ -1448,9 +1561,10 @@ def page_has_been_retrieved(survey_id, room_type, neighborhood, guests,
         return has_rooms
 
 
-def search_page_url(search_area_name, guests, neighborhood, room_type,
+def search_page_url(search_string, guests, neighborhood, room_type,
                     page_number):
-    url_root = URL_SEARCH_ROOT + search_area_name
+    # search_string is either a search area name or a zipcode
+    url_root = URL_SEARCH_ROOT + search_string
     url_suffix = "guests=" + str(guests)
     if neighborhood is not None:
         url_suffix += "&"
@@ -1523,8 +1637,13 @@ def search_survey(survey_id, flag, search_by):
 
             # Loop over neighborhoods or zipcode
             if search_by == SEARCH_BY_ZIPCODE:
-                zipcode = db_get_zipcodes_from_db(search_area_id)
-                pass
+                zipcodes = db_get_zipcodes_from_search_area(search_area_id)
+                for room_type in (
+                    "Private room",
+                    "Entire home/apt",
+                    ):
+                    logger.debug("Searching for %(rt)s by zipcode" % {"rt": room_type})
+                    search_loop_zipcodes(zipcodes, room_type, survey_id, flag, search_area_name)
             else:
                 neighborhoods = db_get_neighborhoods_from_search_area(search_area_id)
                 for room_type in (
@@ -1532,7 +1651,7 @@ def search_survey(survey_id, flag, search_by):
                     "Entire home/apt",
                     "Shared room",
                     ):
-                    logger.debug("Searching for %(rt)s" % {"rt": room_type})
+                    logger.debug("Searching for %(rt)s by neighborhood" % {"rt": room_type})
                     if len(neighborhoods) > 0:
                         search_loop_neighborhoods(neighborhoods, room_type,
                                             survey_id, flag,
@@ -1546,6 +1665,16 @@ def search_survey(survey_id, flag, search_by):
         raise
 
 
+def search_loop_zipcodes(zipcodes, room_type,
+                              survey_id, flag,
+                              search_area_name):
+    try:
+        for zipcode in zipcodes:
+            search_zipcode(str(zipcode), room_type, survey_id,
+                                flag, search_area_name)
+    except:
+        raise
+
 def search_loop_neighborhoods(neighborhoods, room_type,
                               survey_id, flag,
                               search_area_name):
@@ -1556,6 +1685,45 @@ def search_loop_neighborhoods(neighborhoods, room_type,
     except:
         raise
 
+
+def search_zipcode(zipcode, room_type, survey_id,
+                        flag, search_area_name):
+    try:
+        if room_type in ("Private room", "Shared room"):
+            max_guests = 4
+        else:
+            max_guests = SEARCH_MAX_GUESTS
+        for guests in range(1, max_guests):
+            logger.debug("Searching for %(g)i guests" % {"g": guests})
+            for page_number in range(1, SEARCH_MAX_PAGES):
+                if flag != FLAGS_PRINT:
+                    # for FLAGS_PRINT, fetch one page and print it
+                    # this efficiency check can be implemented later
+                    count = page_has_been_retrieved(
+                        survey_id, room_type,
+                        str(zipcode), guests, page_number, SEARCH_BY_ZIPCODE)
+                    if count == 1:
+                        logger.debug("\t...search page has been visited previously")
+                        continue
+                    elif count == 0:
+                        logger.debug("\t...search page has been visited previously")
+                        break
+                    else:
+                        logger.debug("\t...visiting search page")
+                room_count = ws_get_search_page_info_zipcode(
+                    survey_id,
+                    search_area_name,
+                    room_type,
+                    zipcode,
+                    guests,
+                    page_number,
+                    flag)
+                if room_count <= 0:
+                    break
+                if flag == FLAGS_PRINT:
+                    return
+    except:
+        raise
 
 def search_neighborhood(neighborhood, room_type, survey_id,
                         flag, search_area_name):
@@ -1571,7 +1739,7 @@ def search_neighborhood(neighborhood, room_type, survey_id,
                     # for FLAGS_PRINT, fetch one page and print it
                     count = page_has_been_retrieved(
                         survey_id, room_type,
-                        neighborhood, guests, page_number)
+                        neighborhood, guests, page_number, SEARCH_BY_NEIGHBORHOOD)
                     if count == 1:
                         logger.debug("\t...search page has been visited previously")
                         continue
@@ -1654,6 +1822,10 @@ def main():
                        metavar='survey_id', type=int,
                        help="""print first page of search information
                        for survey from the Airbnb web site""")
+    group.add_argument('-psz', '--printsearch_zipcode',
+                       metavar='survey_id', type=int,
+                       help="""print first page of search information
+                       for survey from the Airbnb web site, by zipcode""")
     group.add_argument('-s', '--search',
                        metavar='survey_id', type=int,
                        help='search for rooms using survey survey_id')
@@ -1671,7 +1843,7 @@ def main():
         if args.search:
             search_survey(args.search, FLAGS_ADD, SEARCH_BY_NEIGHBORHOOD)
         elif args.search_by_zip:
-            search_survey(args.search, FLAGS_ADD, SEARCH_BY_ZIPCODE)
+            search_survey(args.search_by_zip, FLAGS_ADD, SEARCH_BY_ZIPCODE)
         elif args.fill:
             fill_loop_by_room()
         elif args.addsearcharea:
@@ -1702,6 +1874,8 @@ def main():
             ws_get_room_info(args.printroom, None, FLAGS_PRINT)
         elif args.printsearch:
             search_survey(args.printsearch, FLAGS_PRINT, SEARCH_BY_NEIGHBORHOOD)
+        elif args.printsearch_zipcode:
+            search_survey(args.printsearch_zipcode, FLAGS_PRINT, SEARCH_BY_ZIPCODE)
         else:
             parser.print_help()
     except KeyboardInterrupt:
