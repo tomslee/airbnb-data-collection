@@ -27,8 +27,9 @@ conn = connect()
 def get_spreadsheet(city, schema, format):
     survey_ids = []
     survey_dates = []
+    survey_comments = []
     sql_survey_ids = """
-        select survey_id, survey_date
+        select survey_id, survey_date, comment
         from survey s, search_area sa
         where s.search_area_id = sa.search_area_id
         and sa.name = %s
@@ -40,6 +41,7 @@ def get_spreadsheet(city, schema, format):
     for row in rs:
         survey_ids.append(row[0])
         survey_dates.append(row[1])
+        survey_comments.append(row[2])
 
     #survey_ids = [11, ]
     if schema == "unite":
@@ -82,7 +84,7 @@ def get_spreadsheet(city, schema, format):
         """
 
     if format == "csv":
-        for survey_id, survey_date in zip(survey_ids, survey_dates):
+        for survey_id, survey_date, survey_comment in zip(survey_ids, survey_dates, survey_comments):
             csvfile =  "./" + schema + "/Slee_" + schema + "_" + city + "_" + str(survey_id) + ".csv"
             df = pd.read_sql(sql, conn, 
                     #index_col="room_id",
@@ -96,14 +98,30 @@ def get_spreadsheet(city, schema, format):
         xlsxfile =  "./" + schema + "/Slee_" + schema + "_" + city_bar + "_" + today + ".xlsx"
         writer = pd.ExcelWriter(xlsxfile, engine="xlsxwriter")
         print ("Starting on " + xlsxfile)
-        for survey_id, survey_date in zip(survey_ids, survey_dates):
+        for survey_id, survey_date, survey_comment in zip(survey_ids, survey_dates, survey_comments):
             print ("Starting on survey " + str(survey_id) + " for city " + city)
             df = pd.read_sql(sql, conn, 
                         #index_col="room_id",
                         params={"survey_id": survey_id}
                         )
-            print ("To Excel on survey " + str(survey_id))
-            df.to_excel(writer, sheet_name=str(survey_date))
+            if len(df) > 0:
+                print ("To Excel on survey " + str(survey_id))
+                if survey_comment:
+                    # This comment feature is not currently working
+                    options = {
+                        'width': 256,
+                        'height': 100,
+                        'x_offset': 10,
+                        'y_offset': 10,
+                        'font': {'color': 'red',
+                                'size': 14},
+                        'align': {'vertical': 'middle',
+                                'horizontal': 'center'
+                                },
+                    }
+                df.to_excel(writer, sheet_name=str(survey_date))
+            else:
+                print ("Survey " + str(survey_id) + " not in production schema: ignoring")
         print ("Saving " + xlsxfile)
         writer.save()
     

@@ -30,6 +30,7 @@ import psycopg2.errorcodes
 import webbrowser
 import os
 import configparser
+import json 
 
 
 # ============================================================================
@@ -1218,8 +1219,16 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
                 logger.info("No address found for room " + str(room_id))
 
         # -- reviews --
-        temp = tree.xpath("//div[@id='room']/div[@id='reviews']//h4/text()")
-        if len(temp) > 0:
+        # 2015-10-02
+        temp2 = tree.xpath(
+                "//div[@class='___iso-state___p3summarybundlejs']"
+                "/@data-state"
+                )
+        if len(temp2) == 1:
+            summary = json.loads(temp2[0])
+            reviews = summary["visibleReviewCount"]
+        elif len(temp2) == 0:
+            temp = tree.xpath("//div[@id='room']/div[@id='reviews']//h4/text()")
             reviews = temp[0].strip()
             reviews = reviews.split('+')[0]
             reviews = reviews.split(' ')[0].strip()
