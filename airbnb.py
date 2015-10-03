@@ -1158,28 +1158,35 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
 
         # -- room type --
         # new page format 2015-09-30?
-        temp4 = tree.xpath(
+        room_type = "Unknown"
+        temp = tree.xpath(
             "//div[@class='col-md-6']"
             "/div/span[text()[contains(.,'Room type:')]]"
             "/../strong/text()"
             )
-        # new page format 2014-12-26
-        #temp3_entire = tree.xpath(
-            #"//div[@id='summary']"
-            #"//i[contains(concat(' ', @class, ' '), ' icon-entire-place ')]"
-            #)
-        #temp3_private = tree.xpath(
-            #"//div[@id='summary']"
-            #"//i[contains(concat(' ', @class, ' '), ' icon-private-room ')]"
-            #)
-        #temp3_shared = tree.xpath(
-            #"//div[@id='summary']"
-            #"//i[contains(concat(' ', @class, ' '), ' icon-shared-room ')]"
-            #)
-        if len(temp4) > 0:
-            room_type = temp4[0].strip()
+        if len(temp) > 0:
+            room_type = temp[0].strip()
         else:
-            room_type = 'Unknown'
+            # new page format 2014-12-26
+            temp_entire = tree.xpath(
+                "//div[@id='summary']"
+                "//i[contains(concat(' ', @class, ' '), ' icon-entire-place ')]"
+                )
+            if len(temp_entire) > 0:
+                room_type = "Entire home/apt"
+            temp_private = tree.xpath(
+                "//div[@id='summary']"
+                "//i[contains(concat(' ', @class, ' '), ' icon-private-room ')]"
+                )
+            if len(temp_private) > 0:
+                room_type = "Private room"
+            temp_shared = tree.xpath(
+                "//div[@id='summary']"
+                "//i[contains(concat(' ', @class, ' '), ' icon-shared-room ')]"
+                )
+            if len(temp_shared) > 0:
+                room_type = "Shared room"
+        if room_type == 'Unknown':
             logger.warning("No room_type found for room " + str(room_id))
 
         # -- neighborhood --
@@ -1246,43 +1253,60 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
 
         # -- accommodates --
         # new version Dec 2014
-        temp3 = tree.xpath(
+        temp = tree.xpath(
                 "//div[@class='col-md-6']"
                 "//div/span[text()[contains(.,'Accommodates:')]]"
                 "/../strong/text()"
                 )
-        #temp2 = tree.xpath(
-                #"//div[@id='summary']"
-                #"//div[@class='panel-body']/div[@class='row'][2]"
-                #"/div[@class='col-9']"
-                #"//div[@class='col-3'][2]"
-                #"/text()"
-                #)
-        #temp1 = tree.xpath(
-            #"//table[@id='description_details']"
-            #"//td[contains(text(),'Accommodates:')]"
-            #"/following-sibling::td/descendant::text()"
-            #)
-        if len(temp3) > 0:
-            accommodates = temp3[0].strip()
-        #elif len(temp2) > 0:
-            #accommodates = temp2[0].strip()
-        #elif len(temp1) > 0:
-            #accommodates = temp1[0]
+        if len(temp) > 0:
+            accommodates = temp[0].strip()
+        else:
+            temp = tree.xpath(
+                "//div[@class='col-md-6']"
+                "//div/span[text()[contains(.,'Accommodates:')]]"
+                "/../strong/text()"
+                )
+            #temp = tree.xpath(
+            #    "//div[@id='summary']"
+            #    "//div[@class='panel-body']/div[@class='row'][2]"
+            #    "/div[@class='col-9']"
+            #    "//div[@class='col-3'][2]"
+            #    "/text()"
+            #    )
+            if len(temp) > 0:
+                accommodates = temp[0].strip()
+            else:
+                temp = tree.xpath(
+                "//div[@class='col-md-6']"
+                "//div[text()[contains(.,'Accommodates:')]]"
+                "/strong/text()"
+                )
+                if len(temp) > 0:
+                    accommodates = temp[0].strip()
+        if accommodates:
+            accommodates = accommodates.split('+')[0]
+            accommodates = accommodates.split(' ')[0]
         else:
             logger.warning("No accommodates found for room "
                            + str(room_id))
-        if accommodates != None:
-            accommodates = accommodates.split('+')[0]
-            accommodates = accommodates.split(' ')[0]
 
         # -- bedrooms --
         # new version Dec 2014
-        temp3 = tree.xpath(
+        temp = tree.xpath(
             "//div[@class='col-md-6']"
             "/div/span[text()[contains(.,'Bedrooms:')]]"
             "/../strong/text()"
             )
+        if len(temp) > 0:
+            bedrooms = temp3[0].strip()
+        else:
+            temp = tree.xpath(
+                "//div[@class='col-md-6']"
+                "/div[text()[contains(.,'Bedrooms:')]]"
+                "/strong/text()"
+                )
+            if len(temp) > 0:
+                bedrooms = temp[0].strip()
         #temp2 = tree.xpath(
             #"//div[@id='summary']"
             #"//div[@class='panel-body']/div[@class='row'][2]"
@@ -1294,17 +1318,15 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
             #"//table[@id='description_details']"
             #"//td[contains(text(),'Bedrooms:')]"
             #"/following-sibling::td/descendant::text()")
-        if len(temp3) > 0:
-            bedrooms = temp3[0].strip()
         #elif len(temp2) > 0:
             #bedrooms = temp2[0].strip()
         #elif len(temp1) > 0:
             #bedrooms = temp1[0].split('+')[0]
-        else:
-            logger.warning("No bedrooms found for room " + str(room_id))
-        if bedrooms != None:
+        if bedrooms:
             bedrooms = bedrooms.split('+')[0]
             bedrooms = bedrooms.split(' ')[0]
+        else:
+            logger.warning("No bedrooms found for room " + str(room_id))
 
         # -- bathrooms --
         temp3 = tree.xpath(
@@ -1312,6 +1334,16 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
             "/div/span[text()[contains(.,'Bathrooms:')]]"
             "/../strong/text()"
             )
+        if len(temp) > 0:
+            bathrooms = temp[0].strip()
+        else:
+            temp = tree.xpath(
+                "//div[@class='col-md-6']"
+                "/div/span[text()[contains(.,'Bathrooms:')]]"
+                "/../strong/text()"
+                )
+            if len(temp) > 0:
+                bathrooms = temp[0].strip()
         #temp2 = tree.xpath(
             #"//div[@id='details-column']"
             #"//div[text()[contains(.,'Bathrooms:')]]"
@@ -1322,18 +1354,16 @@ def get_room_info_from_page(page, room_id, survey_id, flag):
             #"//td[text()[contains(.,'Bathrooms:')]]"
             #"/following-sibling::td/descendant::text()"
             #)
-        if len(temp3) > 0:
-            bathrooms = temp3[0].strip()
         #if len(temp2) > 0:
             #bathrooms = temp2[0].strip()
         #elif len(temp1) > 0:
             ## try old page match
             #bathrooms = temp1[0].strip()
-        else:
-            logger.info("No bathrooms found for room " + str(room_id))
-        if bathrooms != None:
+        if bathrooms:
             bathrooms = bathrooms.split('+')[0]
             bathrooms = bathrooms.split(' ')[0]
+        else:
+            logger.info("No bathrooms found for room " + str(room_id))
 
         # -- minimum stay --
         temp3 = tree.xpath(
