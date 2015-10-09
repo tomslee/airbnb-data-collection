@@ -121,7 +121,7 @@ def init():
         global HTTP_PROXY_LIST, MAX_CONNECTION_ATTEMPTS, REQUEST_SLEEP, HTTP_TIMEOUT
         try:
             HTTP_PROXY_LIST = config["NETWORK"]["proxy_list"].split(",")
-        except:
+        except Exception:
             logging.info("No http_proxy_list in " + username + ".config: not using proxies")
             HTTP_PROXY_LIST = None
         MAX_CONNECTION_ATTEMPTS = int(config["NETWORK"]["max_connection_attempts"])
@@ -133,7 +133,7 @@ def init():
         ROOM_ID_UPPER_BOUND = int(config["SURVEY"]["room_id_upper_bound"])
         SEARCH_MAX_PAGES = int(config["SURVEY"]["search_max_pages"])
         SEARCH_MAX_GUESTS = int(config["SURVEY"]["search_max_guests"])
-    except:
+    except Exception:
         logger.exception("Failed to read config file properly")
         raise       
 
@@ -152,7 +152,7 @@ def connect():
     except psycopg2.OperationalError as pgoe:
         logger.error(pgoe.message)
         raise
-    except:
+    except Exception:
         logger.error(
             "Failed to connect to database." +
             "You may need to change the DB_FILE value in airbnb.py")
@@ -205,7 +205,7 @@ def list_search_area_info(search_area):
         cur.close()
         conn.rollback()
         raise
-    except:
+    except Exception:
         logger.error("Failed to list search area info")
         raise
 
@@ -225,7 +225,7 @@ def list_surveys():
             for survey in result_set:
                 (id, survey_date, desc, sa_id) = survey
                 print(template.format(id, survey_date, desc, sa_id))
-    except:
+    except Exception:
         logger.error("Cannot list surveys.")
         raise
 
@@ -258,7 +258,7 @@ def list_room(room_id):
             print("\nThere is no room", str(room_id), "in the database.\n")
             return False
         cur.close()
-    except:
+    except Exception:
         raise
 
 
@@ -307,7 +307,7 @@ def db_ping():
             print("Connection test succeeded")
         else:
             print("Connection test failed")
-    except:
+    except Exception:
         logger.exception("Connection test failed")
 
 
@@ -338,7 +338,7 @@ def db_add_survey(search_area):
               + "\n\tsurvey_date=" + str(survey_date)
               + "\n\tsurvey_description=" + survey_description
               + "\n\tsearch_area_id=" + str(search_area_id))
-    except:
+    except Exception:
         logger.error("Failed to add survey for " + search_area)
         raise
 
@@ -362,7 +362,7 @@ def db_get_zipcodes_from_search_area(search_area_id):
             zipcodes.append(row[0])
         cur.close()
         return zipcodes
-    except:
+    except Exception:
         logger.error("Failed to retrieve zipcodes for search_area"
                      + str(search_area_id))
         raise
@@ -384,7 +384,7 @@ def db_get_neighborhoods_from_search_area(search_area_id):
             neighborhoods.append(row[0])
         cur.close()
         return neighborhoods
-    except:
+    except Exception:
         logger.error("Failed to retrieve neighborhoods from "
                      + str(search_area_id))
         raise
@@ -432,7 +432,7 @@ def db_get_search_area_info_from_db(search_area):
 
         cur.close()
         return (cities, neighborhoods)
-    except:
+    except Exception:
         logger.error("Error getting search area info from db")
         raise
 
@@ -469,7 +469,7 @@ def db_get_room_to_fill():
         logger.info("-- Finishing: no unfilled rooms in database --")
         conn = None
         return (None, None)
-    except:
+    except Exception:
         logger.error("Error retrieving room to fill from db")
         conn = None
         raise
@@ -490,7 +490,7 @@ def db_get_search_area_from_survey_id(survey_id):
     except KeyboardInterrupt:
         cur.close()
         raise
-    except:
+    except Exception:
         cur.close()
         logger.error("No search area for survey_id " + str(survey_id))
         raise
@@ -507,7 +507,7 @@ def db_save_room_as_deleted(room_id, survey_id):
         cur.execute(sql, (room_id, survey_id))
         cur.close()
         conn.commit()
-    except:
+    except Exception:
         logger.error("Failed to save room as deleted")
         pass
 
@@ -635,7 +635,7 @@ def db_save_room_info(room_info, insert_replace_flag):
             raise
         except KeyboardInterrupt:
             raise
-        except:
+        except Exception:
             cur.close()
             raise
     except KeyboardInterrupt:
@@ -676,7 +676,7 @@ def db_log_survey_search_page(survey_id, room_type, neighborhood_id,
         cur.close()
         conn.rollback()
         return False
-    except:
+    except Exception:
         logger.error("Save survey search page failed")
         return False
 
@@ -702,7 +702,7 @@ def db_get_neighborhood_id(survey_id, neighborhood):
         return neighborhood_id
     except psycopg2.Error as pge:
         raise
-    except:
+    except Exception:
         return None
 
 
@@ -771,10 +771,10 @@ def ws_get_city_info(city, flag):
             #    logger.info(s.encode('utf8'))
             # unhandled at the moment
             pass
-        except:
+        except Exception:
             logger.error("Error collecting city and neighborhood information")
             raise
-    except:
+    except Exception:
         logger.error("Error getting city info from website")
         raise
 
@@ -983,7 +983,7 @@ def ws_get_search_page_info_zipcode(survey_id, search_area_name, room_type,
         #    logger.info(s.encode('utf8'))
         # unhandled at the moment
         pass
-    except:
+    except Exception:
         raise
 
 def ws_get_search_page_info(survey_id, search_area_name, room_type,
@@ -1057,7 +1057,7 @@ def ws_get_search_page_info(survey_id, search_area_name, room_type,
         #    logger.info(s.encode('utf8'))
         # unhandled at the moment
         pass
-    except:
+    except Exception:
         raise
 
 
@@ -1578,7 +1578,7 @@ def page_has_been_retrieved(survey_id, room_type, neighborhood_or_zipcode, guest
                           page_number))
             has_rooms = cur.fetchone()[0]
             logger.debug("has_rooms = " + str(has_rooms) + " for zipcode " + str(zipcode))
-    except:
+    except Exception:
         has_rooms = -1
         logger.debug("page has not been retrieved previously")
     finally:
@@ -1686,7 +1686,7 @@ def search_survey(survey_id, flag, search_by):
                                     flag, search_area_name)
     except KeyboardInterrupt:
         raise
-    except:
+    except Exception:
         raise
 
 
@@ -1697,7 +1697,7 @@ def search_loop_zipcodes(zipcodes, room_type,
         for zipcode in zipcodes:
             search_zipcode(str(zipcode), room_type, survey_id,
                                 flag, search_area_name)
-    except:
+    except Exception:
         raise
 
 def search_loop_neighborhoods(neighborhoods, room_type,
@@ -1707,7 +1707,7 @@ def search_loop_neighborhoods(neighborhoods, room_type,
         for neighborhood in neighborhoods:
             search_neighborhood(neighborhood, room_type, survey_id,
                                 flag, search_area_name)
-    except:
+    except Exception:
         raise
 
 
@@ -1747,7 +1747,7 @@ def search_zipcode(zipcode, room_type, survey_id,
                     break
                 if flag == FLAGS_PRINT:
                     return
-    except:
+    except Exception:
         raise
 
 def search_neighborhood(neighborhood, room_type, survey_id,
@@ -1785,7 +1785,7 @@ def search_neighborhood(neighborhood, room_type, survey_id,
                     break
                 if flag == FLAGS_PRINT:
                     return
-    except:
+    except Exception:
         raise
 
 def main():
@@ -1908,7 +1908,7 @@ def main():
     except SystemExit:
         # sys.exit() called: don't log a stack trace
         pass
-    except:
+    except Exception:
         logger.exception("Top level exception handler: quitting.")
         sys.exit(0)
 
