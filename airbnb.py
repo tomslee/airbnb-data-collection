@@ -1260,7 +1260,12 @@ def ws_request_page(url, params=None):
         time.sleep(sleep_time) # be nice
 
         page = None
+
+        #headers
         headers={'User-Agent': 'Mozilla/5.0'}
+        # timeout
+        timeout=HTTP_TIMEOUT 
+  
         # If there is a list of proxies supplied, use it
         http_proxy = None
         if HTTP_PROXY_LIST is not None:
@@ -1273,8 +1278,8 @@ def ws_request_page(url, params=None):
             proxies=None
         # Now make the request
         logger.debug("Requesting page through proxy " + http_proxy)
-        r = requests.get(url, params, headers=headers, proxies=proxies)
-        if r.status_code == 200: # success
+        r = requests.get(url, params, timeout=timeout, headers=headers, proxies=proxies)
+        if r.status_code == requests.codes.ok : # success
             page = r.text
         elif r.status_code == 503:
             logger.warning("503 error for proxy " + http_proxy)
@@ -1300,7 +1305,7 @@ def ws_get_page(url, params=None):
     for attempt in range(MAX_CONNECTION_ATTEMPTS):
         try:
             (retcode, page) = ws_request_page(url, params)
-            if retcode == 200:
+            if retcode == requests.codes.ok:
                 return page
             else:
                 logger.warning("Request failure " + str(attempt + 1) + ": trying again")
