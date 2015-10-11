@@ -73,8 +73,9 @@ SEARCH_BY_NEIGHBORHOOD=0 # default
 SEARCH_BY_ZIPCODE=1
 
 # Script version
+# 2.5 is a bit of a rewrite: classes for Listing and Survey, and requests lib
 # 2.3 released Jan 12, 2015, to handle a web site update
-SCRIPT_VERSION_NUMBER = 2.4
+SCRIPT_VERSION_NUMBER = 2.5
 
 # Set up logging
 logger = logging.getLogger()
@@ -352,16 +353,12 @@ class Listing():
                         + " from Airbnb web site")
             room_url = URL_ROOM_ROOT + str(self.room_id)
             page = ws_get_page(room_url)
-            if page is not False:
-                tree = html.fromstring(page)
-                if tree is None:
-                    self.deleted = 1
-                else:
-                    self.deleted = 0
+            tree = html.fromstring(page)
+            if tree is None:
+                return False
+            else:
                 self.__get_room_info_from_tree(tree, flag)
                 return True
-            else:
-                return False
         except BrokenPipeError as bpe:
             logger.error(bpe.message)
             raise
@@ -1183,7 +1180,7 @@ def ws_get_city_info(city, flag):
     try:
         url = URL_SEARCH_ROOT + city
         page = ws_get_page(url)
-        if page is False:
+        if len(page) == 0:
             return False
         tree = html.fromstring(page)
         try:
@@ -1349,12 +1346,13 @@ def ws_get_page(url, params=None):
             return page
     except NameError as ne:
         logger.exception("NameError retrieving page")
-        return False
+        return ""
     except AttributeError as ae:
         logger.exception("AttributeError retrieving page")
-        return False
+        return ""
     except Exception as e:
         logger.exception("Exception retrieving page: " + str(type(e)))
+        logger.error("Exception type: " + type(exception).__name__)
         raise
 
 
@@ -1373,7 +1371,7 @@ def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
         logging.info("-- sleeping " + str(sleep_time) + " seconds...")
         time.sleep(sleep_time) # be nice
         page = ws_get_page(url, params)
-        if page is False:
+        if len(page)==0:
             return 0
         tree = html.fromstring(page)
         room_elements = tree.xpath(
@@ -1426,7 +1424,7 @@ def ws_get_search_page_info(survey, room_type,
         logging.info("-- sleeping " + str(sleep_time) + " seconds...")
         time.sleep(sleep_time) # be nice
         page = ws_get_page(url, params)
-        if page is False:
+        if len(page)==0:
             return 0
         tree = html.fromstring(page)
         room_elements = tree.xpath(
