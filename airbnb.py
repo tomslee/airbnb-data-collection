@@ -353,10 +353,8 @@ class Listing():
                         + " from Airbnb web site")
             room_url = URL_ROOM_ROOT + str(self.room_id)
             page = ws_get_page(room_url)
-            tree = html.fromstring(page)
-            if tree is None:
-                return False
-            else:
+            if page is not None:
+                tree = html.fromstring(page)
                 self.__get_room_info_from_tree(tree, flag)
                 return True
         except BrokenPipeError as bpe:
@@ -756,11 +754,8 @@ class Survey():
                         if room_id is None:
                             break
                         else:
-                            sleep_time = REQUEST_SLEEP * random.random()
-                            logging.info("---- sleeping " + str(sleep_time) + " seconds...")
                             if HTTP_PROXY_LIST is not None:
                                 logging.info("---- Currently using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
-                            time.sleep(sleep_time) # be nice
                             if listing.ws_get_room_info(FLAGS_ADD):
                                 room_count += 1
                     except AttributeError as ae:
@@ -895,12 +890,7 @@ class Survey():
                         else:
                             logger.debug("\t...visiting search page")
                     room_count = ws_get_search_page_info(
-                        self,
-                        room_type,
-                        neighborhood,
-                        guests,
-                        page_number,
-                        flag)
+                        self, room_type, neighborhood, guests, page_number, flag)
                     if room_count <= 0:
                         break
                     if flag == FLAGS_PRINT:
@@ -1180,7 +1170,7 @@ def ws_get_city_info(city, flag):
     try:
         url = URL_SEARCH_ROOT + city
         page = ws_get_page(url)
-        if len(page) == 0:
+        if page is None:
             return False
         tree = html.fromstring(page)
         try:
@@ -1261,9 +1251,15 @@ def ws_airbnb_is_live():
 
 def ws_request_page(url, params=None):
     """
-    Individual request
+    Individual request for a web page: return a success code and a page
     """
     try:
+        # wait
+        sleep_time = REQUEST_SLEEP * random.random()
+        logging.info("-- sleeping " + str(sleep_time)[:7] + " seconds...")
+        time.sleep(sleep_time) # be nice
+
+        page = None
         headers={'User-Agent': 'Mozilla/5.0'}
         # If there is a list of proxies supplied, use it
         http_proxy = None
@@ -1279,81 +1275,46 @@ def ws_request_page(url, params=None):
         logger.debug("Requesting page through proxy " + http_proxy)
         r = requests.get(url, params, headers=headers, proxies=proxies)
         if r.status_code == 200: # success
-            return r.text
+            page = r.text
         elif r.status_code == 503:
+            logger.warning("503 error for proxy " + http_proxy)
             if random.random() < 0.5:
-                if http_proxy is None:
+                if http_proxy is None or len(HTTP_PROXY_LIST) < 1:
                     # fill the proxy list again, and wait a long time, then restart
-                    init()
-                    time.sleep(RE_INIT_SLEEP_TIME) # be nice
-                    return False
-                elif len(HTTP_PROXY_LIST) < 1:
                     logging.error("No proxies left in the list. Re-initializing.")
-                    init()
                     time.sleep(RE_INIT_SLEEP_TIME) # be nice
-                    return False
+                    init()
                 else:
-                    pass
+                    # remove the proxy from the proxy list
+                    logger.warning("Removing " + http_proxy + " from proxy list.")
+                    HTTP_PROXY_LIST.remove(http_proxy)
+        return(r.status_code, page)
     except KeyboardInterrupt:
         sys.exit()
-    except requests.exceptions.ConnectionError as ce:
-        logger.error("Connection error " + str(ce) + " for proxy " + http_proxy)
-        if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
-            logger.error("Probable connectivity problem retrieving " +
-                         "web page " + url)
-            if ws_airbnb_is_live():
-                return False
-            else:
-                raise
-    except requests.exceptions.ConnectTimeout as ct:
-        logger.error("Connection error " + str(ct) + " for proxy " + http_proxy)
-        if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
-            logger.error("Probable connectivity problem retrieving " +
-                         "web page " + url)
-            if ws_airbnb_is_live():
-                return False
-            else:
-                raise
-    except requests.exceptions.Timeout as t:
-        logger.error("Connection error " + str(t) + " for proxy " + http_proxy)
-        if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
-            logger.error("Probable connectivity problem retrieving " +
-                         "web page " + url)
-            if ws_airbnb_is_live():
-                return False
-            else:
-                raise
     except Exception as e:
-        logger.error("Failed to retrieve web page " + url)
-        logger.error("Exception type: " + type(exception).__name__)
-        if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
-            logger.error("Probable connectivity problem retrieving " +
-                         "web page " + url)
-            if ws_airbnb_is_live():
-                return False
-            else:
-                raise
-
+        logger.exception("Exception type: " + type(exception).__name__)
+        return(r.status_code, page)
 
 def ws_get_page(url, params=None):
-    # chrome gets the JavaScript-loaded content as well
-    # see http://webscraping.com/blog/Scraping-JavaScript-webpages-with-webkit/
-    # r = Render(url)
-    # page = r.frame.toHtml()
-    try:
-        for attempt in range(MAX_CONNECTION_ATTEMPTS):
-            page = ws_request_page(url, params)
-            return page
-    except NameError as ne:
-        logger.exception("NameError retrieving page")
-        return ""
-    except AttributeError as ae:
-        logger.exception("AttributeError retrieving page")
-        return ""
-    except Exception as e:
-        logger.exception("Exception retrieving page: " + str(type(e)))
-        logger.error("Exception type: " + type(exception).__name__)
-        raise
+    # Return None on failure
+    for attempt in range(MAX_CONNECTION_ATTEMPTS):
+        try:
+            (retcode, page) = ws_request_page(url, params)
+            if retcode == 200:
+                return page
+            else:
+                logger.warning("Request failure " + str(attempt + 1) + ": trying again")
+        except NameError as ne:
+            logger.exception("NameError retrieving page")
+        except AttributeError as ae:
+            logger.exception("AttributeError retrieving page")
+        except Exception as e:
+            logger.exception("Exception retrieving page: " + str(type(e)))
+            logger.error("Exception type: " + type(exception).__name__)
+    # Failed
+    logger.error("Failed to retrieve web page " + url)
+    logger.error("Exception type: " + type(exception).__name__)
+    return None
 
 
 def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
@@ -1367,11 +1328,8 @@ def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
         (url, params) = search_page_url(zipcode, guests,
                               None, room_type,
                               page_number)
-        sleep_time = REQUEST_SLEEP * random.random()
-        logging.info("-- sleeping " + str(sleep_time) + " seconds...")
-        time.sleep(sleep_time) # be nice
         page = ws_get_page(url, params)
-        if len(page)==0:
+        if page is None:
             return 0
         tree = html.fromstring(page)
         room_elements = tree.xpath(
@@ -1420,11 +1378,8 @@ def ws_get_search_page_info(survey, room_type,
         (url, params) = search_page_url(survey.search_area_name, guests,
                               neighborhood, room_type,
                               page_number)
-        sleep_time = REQUEST_SLEEP * random.random()
-        logging.info("-- sleeping " + str(sleep_time) + " seconds...")
-        time.sleep(sleep_time) # be nice
         page = ws_get_page(url, params)
-        if len(page)==0:
+        if page is None:
             return 0
         tree = html.fromstring(page)
         room_elements = tree.xpath(
@@ -1482,11 +1437,8 @@ def fill_loop_by_room():
             if listing.room_id is None:
                 break
             else:
-                sleep_time = REQUEST_SLEEP * random.random()
-                logging.info("---- sleeping " + str(sleep_time) + " seconds...")
                 if HTTP_PROXY_LIST is not None:
                     logging.info("---- Currently using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
-                time.sleep(sleep_time) # be nice
                 if listing.ws_get_room_info(FLAGS_ADD):
                     pass
                 else: #Airbnb now seems to return nothing if a room has gone
