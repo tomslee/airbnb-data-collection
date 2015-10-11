@@ -22,9 +22,6 @@ import time
 import random
 import subprocess
 import requests
-# import urllib.request
-# import urllib.parse
-# import urllib.error
 import requests
 from lxml import html
 import psycopg2
@@ -430,57 +427,63 @@ class Listing():
         except:
             raise
 
-    def __get_room_info_from_tree(self, tree, flag):
+    def __get_country(self, tree):
         try:
-            # Some of these items do not appear on every page (eg,
-            # ratings, bathrooms), and so their absence is marked with
-            # logger.info. Others should be present for every room (eg,
-            # latitude, room_type, host_id) and so are marked with a
-            # warning.  Items coded in <meta
-            # property="airbedandbreakfast:*> elements -- country --
-
-            # -- country --
             temp = tree.xpath(
-                "//meta[contains(@property,'airbedandbreakfast:country')]"
-                "/@content"
-                )
+                    "//meta[contains(@property,'airbedandbreakfast:country')]"
+                    "/@content"
+                    )
             if len(temp) > 0:
                 self.country = temp[0]
+        except:
+            raise
 
-            # -- city --
+    def __get_city(self, tree):
+        try:
             temp = tree.xpath(
                 "//meta[contains(@property,'airbedandbreakfast:city')]"
                 "/@content"
                 )
             if len(temp) > 0:
-                #city = UnicodeDammit(temp[0]).unicode_markup
                 self.city = temp[0]
-
-            # -- rating --
+        except:
+            raise
+        
+    def __get_rating(self, tree):
+        try:
             temp = tree.xpath(
                 "//meta[contains(@property,'airbedandbreakfast:rating')]"
                 "/@content"
                 )
             if len(temp) > 0:
                 self.overall_satisfaction = temp[0]
+        except:
+            raise
 
-            # -- latitude --
+    def __get_latitude(self, tree):
+        try:
             temp = tree.xpath("//meta"
                               "[contains(@property,"
                               "'airbedandbreakfast:location:latitude')]"
                               "/@content")
             if len(temp) > 0:
                 self.latitude = temp[0]
+        except:
+            raise
 
-            # -- longitude --
+    def __get_longitude(self, tree):
+        try:
             temp = tree.xpath(
                 "//meta"
                 "[contains(@property,'airbedandbreakfast:location:longitude')]"
                 "/@content")
             if len(temp) > 0:
                 self.longitude = temp[0]
+        except:
+            raise
 
-            # -- host_id --
+    def __get_host_id(self, tree):
+        try:
             temp = tree.xpath(
                 "//div[@id='host-profile']"
                 "//a[contains(@href,'/users/show')]"
@@ -499,7 +502,11 @@ class Listing():
                     host_id_element = temp[0]
                     host_id_offset = len('/users/show/')
                     self.host_id = int(host_id_element[host_id_offset:])
+        except:
+            raise
 
+    def __get_room_type(self, tree):
+        try:
             # -- room type --
             # new page format 2015-09-30?
             temp = tree.xpath(
@@ -529,8 +536,11 @@ class Listing():
                     )
                 if len(temp_shared) > 0:
                     self.room_type = "Shared room"
+        except:
+            raise
 
-            # -- neighborhood --
+    def __get_neighborhood(self, tree):
+        try:
             temp2 = tree.xpath(
                 "//div[contains(@class,'rich-toggle')]/@data-address"
                 )
@@ -544,8 +554,11 @@ class Listing():
                 self.neighborhood = temp1[0].strip()
             if self.neighborhood is not None:
                 self.neighborhood = self.neighborhood[:50]
+        except:
+            raise
 
-            # -- address --
+    def __get_address(self, tree):
+        try:
             temp = tree.xpath(
                 "//div[contains(@class,'rich-toggle')]/@data-address"
                 )
@@ -560,8 +573,11 @@ class Listing():
                     )
                 if len(temp) > 0:
                     self.address = temp[0]
+        except:
+            raise
 
-            # -- reviews --
+    def __get_reviews(self, tree):
+        try:
             # 2015-10-02
             temp2 = tree.xpath(
                     "//div[@class='___iso-state___p3summarybundlejs']"
@@ -585,9 +601,11 @@ class Listing():
                     )
                 if len(temp) > 0:
                     self.reviews = temp[0]
+        except:
+            raise
 
-            # -- accommodates --
-            # new version Dec 2014
+    def __get_accommodates(self, tree):
+        try:
             temp = tree.xpath(
                 "//div[@class='col-md-6']"
                 "/div/span[text()[contains(.,'Accommodates:')]]"
@@ -614,9 +632,11 @@ class Listing():
             if self.accommodates:
                 self.accommodates = self.accommodates.split('+')[0]
                 self.accommodates = self.accommodates.split(' ')[0]
+        except:
+            raise
 
-            # -- bedrooms --
-            # new version Dec 2014
+    def __get_bedrooms(self, tree):
+        try:
             temp = tree.xpath(
                 "//div[@class='col-md-6']"
                 "/div/span[text()[contains(.,'Bedrooms:')]]"
@@ -635,9 +655,12 @@ class Listing():
             if self.bedrooms:
                 self.bedrooms = self.bedrooms.split('+')[0]
                 self.bedrooms = self.bedrooms.split(' ')[0]
+        except:
+            raise
 
-            # -- bathrooms --
-            temp3 = tree.xpath(
+    def __get_bathrooms(self, tree):
+        try:
+            temp = tree.xpath(
                 "//div[@class='col-md-6']"
                 "/div/span[text()[contains(.,'Bathrooms:')]]"
                 "/../strong/text()"
@@ -655,7 +678,11 @@ class Listing():
             if self.bathrooms:
                 self.bathrooms = self.bathrooms.split('+')[0]
                 self.bathrooms = self.bathrooms.split(' ')[0]
+        except:
+            raise
 
+    def __get_minstay(self, tree):
+        try:
             # -- minimum stay --
             temp3 = tree.xpath(
                 "//div[contains(@class,'col-md-6')"
@@ -681,9 +708,12 @@ class Listing():
             if self.minstay is not None:
                 self.minstay = self.minstay.split('+')[0]
                 self.minstay = self.minstay.split(' ')[0]
+        except:
+            raise
 
-            # -- price --
-            # Price is returned in the currency where your request comes from
+
+    def __get_price(self, tree):
+        try:
             temp2 = tree.xpath(
                 "//meta[@itemprop='price']/@content"
                 )
@@ -701,8 +731,36 @@ class Listing():
             per_month = tree.xpath("//div[@class='js-per-night book-it__payment-period  hide']")
             if per_month:
                 self.price = int(int(self.price) / 30)
+        except:
+            raise
+
+    def __get_room_info_from_tree(self, tree, flag):
+        try:
+            # Some of these items do not appear on every page (eg,
+            # ratings, bathrooms), and so their absence is marked with
+            # logger.info. Others should be present for every room (eg,
+            # latitude, room_type, host_id) and so are marked with a
+            # warning.  Items coded in <meta
+            # property="airbedandbreakfast:*> elements -- country --
+
+            self.__get_country(tree)
+            self.__get_city(tree)
+            self.__get_rating(tree)
+            self.__get_latitude(tree)
+            self.__get_longitude(tree)
+            self.__get_host_id(tree)
+            self.__get_room_type(tree)
+            self.__get_neighborhood(tree)
+            self.__get_address(tree)
+            self.__get_reviews(tree)
+            self.__get_accommodates(tree)
+            self.__get_bedrooms(tree)
+            self.__get_bathrooms(tree)
+            self.__get_minstay(tree)
+            self.__get_price(tree)
 
             self.status_check()
+
             if flag == FLAGS_ADD:
                 self.save(FLAGS_INSERT_REPLACE)
             elif flag == FLAGS_PRINT:
@@ -1296,9 +1354,12 @@ def ws_request_page(url, params=None):
         return(r.status_code, page)
     except KeyboardInterrupt:
         sys.exit()
+    except requests.exceptions.ReadTimeout as rt:
+        logger.error("Failed request: ReadTimeoutError")
+        return(-1, None)
     except Exception as e:
-        logger.exception("Exception type: " + type(exception).__name__)
-        return(r.status_code, page)
+        logger.exception("Exception type: " + type(e).__name__)
+        return(-1, None)
 
 def ws_get_page(url, params=None):
     # Return None on failure
@@ -1309,8 +1370,6 @@ def ws_get_page(url, params=None):
                 return page
             else:
                 logger.warning("Request failure " + str(attempt + 1) + ": trying again")
-        except NameError as ne:
-            logger.exception("NameError retrieving page")
         except AttributeError as ae:
             logger.exception("AttributeError retrieving page")
         except Exception as e:
@@ -1693,3 +1752,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
