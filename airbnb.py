@@ -186,19 +186,22 @@ class Listing():
 
     def status_check(self):
         status = True # OK
-        d = {key:value for key, value 
-                in vars(self).items() if not key.startswith('__') and not callable(key)}
-        unassigned_values = []
-        for key, val in d.items():
-            if key=="overall_satisfaction" and d["reviews"] is not None:
-                if val is None and d["reviews"] > 2:
-                    logger.warning("No value found for " + key)
-                    unassigned_values.append(val)
-            elif val is None:
-                logger.warning("No value found for " + key)
-                unassigned_values.append(val)
-        if len(unassigned_values) > 6: #just a value
+        unassigned_values = {key:value 
+                for key, value in vars(self).items() 
+                if not key.startswith('__') 
+                and not callable(key)
+                and value is None}
+        if len(unassigned_values) > 6: #just a value indicating deleted
+            logger.info("Room " + str(self.room_id) + ": marked deleted.")
             status = False # probably deleted
+            self.deleted = 1
+        else:
+            for key, val in unassigned_values.items():
+                if key=="overall_satisfaction" and "reviews" not in unassigned_values: 
+                    if val is None and self.reviews > 2:
+                        logger.warning("Room " + str(self.room_id) + ": No value for " + key)
+                elif val is None:
+                    logger.warning("Room " + str(self.room_id) + ": No value for " + key)
         return status
 
     def get_columns(self):
@@ -399,7 +402,7 @@ class Listing():
             cur.execute(sql, insert_args)
             conn.commit()
             cur.close()
-            logger.info("Inserted room " + str(self.room_id))
+            logger.info("Room " + str(self.room_id) + ": inserted")
         except:
             raise
 
@@ -428,7 +431,7 @@ class Listing():
             cur.execute(sql, update_args)
             conn.commit()
             cur.close()
-            logger.info("Updated room " + str(self.room_id))
+            logger.info("Room " + str(self.room_id) + ": updated")
         except:
             raise
 
@@ -504,7 +507,6 @@ class Listing():
 
             # -- room type --
             # new page format 2015-09-30?
-            self.room_type = "Unknown"
             temp = tree.xpath(
                 "//div[@class='col-md-6']"
                 "/div/span[text()[contains(.,'Room type:')]]"
@@ -532,8 +534,6 @@ class Listing():
                     )
                 if len(temp_shared) > 0:
                     self.room_type = "Shared room"
-            if self.room_type == 'Unknown':
-                logger.warning("No room_type found for room " + str(self.room_id))
 
             # -- neighborhood --
             temp2 = tree.xpath(
@@ -701,18 +701,13 @@ class Listing():
                 self.price = temp[0][1:]
                 non_decimal = re.compile(r'[^\d.]+')
                 self.price = non_decimal.sub('', price)
-            else:
-                # old page match is the same
-                logger.info("No price found for room " + str(self.room_id))
             # Now find out if it's per night or per month (see if the per_night div
             # is hidden)
             per_month = tree.xpath("//div[@class='js-per-night book-it__payment-period  hide']")
             if per_month:
                 self.price = int(int(self.price) / 30)
 
-            if self.status_check() is False:
-                logger.warn("Room " + str(self.room_id) + " has probably been deleted")
-                self.deleted = 1
+            self.status_check()
             if flag == FLAGS_ADD:
                 self.save(FLAGS_INSERT_REPLACE)
             elif flag == FLAGS_PRINT:
