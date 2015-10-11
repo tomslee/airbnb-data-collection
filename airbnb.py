@@ -22,9 +22,10 @@ import time
 import random
 import subprocess
 import requests
-import urllib.request
-import urllib.parse
-import urllib.error
+# import urllib.request
+# import urllib.parse
+# import urllib.error
+import requests
 from lxml import html
 import psycopg2
 import psycopg2.errorcodes
@@ -77,17 +78,17 @@ SCRIPT_VERSION_NUMBER = 2.4
 
 # Set up logging
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 ch_formatter = logging.Formatter('%(levelname)-8s%(message)s')
 console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.DEBUG)
+console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(ch_formatter)
 logger.addHandler(console_handler)
 
 fl_formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s%(message)s')
 filelog_handler = logging.FileHandler("run.log", encoding="utf-8")
-filelog_handler.setLevel(logging.DEBUG)
+filelog_handler.setLevel(logging.INFO)
 filelog_handler.setFormatter(fl_formatter)
 logger.addHandler(filelog_handler)
 
@@ -182,17 +183,23 @@ class Listing():
         self.latitude = None
         self.longitude = None
         self.survey_id  = survey_id
-        self.last_modified = None
 
-    def has_been_deleted(self):
-        deleted = False
-        assigned_values = [attr for attr in dir(self) 
-                if not callable(attr) 
-                and not attr.startswith("__")
-                and not None]
-        if len(assigned_values) < 6: #just a value
-            deleted = True
-        return deleted
+    def status_check(self):
+        status = True # OK
+        d = {key:value for key, value 
+                in vars(self).items() if not key.startswith('__') and not callable(key)}
+        unassigned_values = []
+        for key, val in d.items():
+            if key=="overall_satisfaction" and d["reviews"] is not None:
+                if val is None and d["reviews"] > 2:
+                    logger.warning("No value found for " + key)
+                    unassigned_values.append(val)
+            elif val is None:
+                logger.warning("No value found for " + key)
+                unassigned_values.append(val)
+        if len(unassigned_values) > 6: #just a value
+            status = False # probably deleted
+        return status
 
     def get_columns(self):
         """
@@ -209,6 +216,7 @@ class Listing():
 
     def save_as_deleted(self):
         try:
+            logger.debug("Marking room deleted: " + str(self.room_id))
             if self.survey_id == None: return
             conn = connect()
             sql = """
@@ -280,6 +288,7 @@ class Listing():
             conn.rollback()
             logger.error("Exception saving room")
             raise
+
     def print_from_web_site(self):
         try:
             s = "Room info:"
@@ -336,12 +345,17 @@ class Listing():
         try:
             # initialization
             logger.info("-" * 70)
-            logger.info("Getting room " + str(listing.room_id)
+            logger.info("Getting room " + str(self.room_id)
                         + " from Airbnb web site")
-            room_url = URL_ROOM_ROOT + str(listing.room_id)
+            room_url = URL_ROOM_ROOT + str(self.room_id)
             page = ws_get_page(room_url)
             if page is not False:
-                self.__get_room_info_from_page(page, flag)
+                tree = html.fromstring(page)
+                if tree is None:
+                    self.deleted = 1
+                else:
+                    self.deleted = 0
+                self.__get_room_info_from_tree(tree, flag)
                 return True
             else:
                 return False
@@ -354,11 +368,8 @@ class Listing():
         except UnicodeEncodeError as uee:
             logger.error("UnicodeEncodeError Exception at " + 
                     str(uee.object[uee.start:uee.end])) 
-        except urllib.http.HTTPError:
-            # mainly 503 errors: handle them above here
-            raise
         except Exception as e:
-            logger.error("Failed to get room " + str(listing.room_id) + " from web site.")
+            logger.exception("Failed to get room " + str(self.room_id) + " from web site.")
             logger.error("Exception: " + str(type(e)))
             raise
 
@@ -417,18 +428,12 @@ class Listing():
             cur.execute(sql, update_args)
             conn.commit()
             cur.close()
-            logger.info("Inserted room " + str(self.room_id))
+            logger.info("Updated room " + str(self.room_id))
         except:
             raise
 
-    def __get_room_info_from_page(page, listing, flag):
+    def __get_room_info_from_tree(self, tree, flag):
         try:
-            tree = html.fromstring(page)
-            if tree is None:
-                listing.deleted = 1
-            else:
-                listing.deleted = 0
-
             # Some of these items do not appear on every page (eg,
             # ratings, bathrooms), and so their absence is marked with
             # logger.info. Others should be present for every room (eg,
@@ -442,9 +447,7 @@ class Listing():
                 "/@content"
                 )
             if len(temp) > 0:
-                listing.country = temp[0]
-            else:
-                logger.info("No country found for room " + str(listing.room_id))
+                self.country = temp[0]
 
             # -- city --
             temp = tree.xpath(
@@ -453,9 +456,7 @@ class Listing():
                 )
             if len(temp) > 0:
                 #city = UnicodeDammit(temp[0]).unicode_markup
-                listing.city = temp[0]
-            else:
-                logger.warning("No city found for room " + str(listing.room_id))
+                self.city = temp[0]
 
             # -- rating --
             temp = tree.xpath(
@@ -463,9 +464,7 @@ class Listing():
                 "/@content"
                 )
             if len(temp) > 0:
-                listing.overall_satisfaction = temp[0]
-            else:
-                logger.info("No rating found for room " + str(listing.room_id))
+                self.overall_satisfaction = temp[0]
 
             # -- latitude --
             temp = tree.xpath("//meta"
@@ -473,9 +472,7 @@ class Listing():
                               "'airbedandbreakfast:location:latitude')]"
                               "/@content")
             if len(temp) > 0:
-                listing.latitude = temp[0]
-            else:
-                logger.warning("No latitude found for room " + str(listing.room_id))
+                self.latitude = temp[0]
 
             # -- longitude --
             temp = tree.xpath(
@@ -483,9 +480,7 @@ class Listing():
                 "[contains(@property,'airbedandbreakfast:location:longitude')]"
                 "/@content")
             if len(temp) > 0:
-                listing.longitude = temp[0]
-            else:
-                logger.warning("No longitude found for room " + str(listing.room_id))
+                self.longitude = temp[0]
 
             # -- host_id --
             temp = tree.xpath(
@@ -496,7 +491,7 @@ class Listing():
             if len(temp) > 0:
                 host_id_element = temp[0]
                 host_id_offset = len('/users/show/')
-                listing.host_id = int(host_id_element[host_id_offset:])
+                self.host_id = int(host_id_element[host_id_offset:])
             else:
                 temp = tree.xpath(
                     "//div[@id='user']"
@@ -505,20 +500,18 @@ class Listing():
                 if len(temp) > 0:
                     host_id_element = temp[0]
                     host_id_offset = len('/users/show/')
-                    listing.host_id = int(host_id_element[host_id_offset:])
-                else:
-                    logger.warning("No host_id found for room " + str(listing.room_id))
+                    self.host_id = int(host_id_element[host_id_offset:])
 
             # -- room type --
             # new page format 2015-09-30?
-            listing.room_type = "Unknown"
+            self.room_type = "Unknown"
             temp = tree.xpath(
                 "//div[@class='col-md-6']"
                 "/div/span[text()[contains(.,'Room type:')]]"
                 "/../strong/text()"
                 )
             if len(temp) > 0:
-                listing.room_type = temp[0].strip()
+                self.room_type = temp[0].strip()
             else:
                 # new page format 2014-12-26
                 temp_entire = tree.xpath(
@@ -538,9 +531,9 @@ class Listing():
                     "//i[contains(concat(' ', @class, ' '), ' icon-shared-room ')]"
                     )
                 if len(temp_shared) > 0:
-                    listing.room_type = "Shared room"
-            if listing.room_type == 'Unknown':
-                logger.warning("No room_type found for room " + str(listing.room_id))
+                    self.room_type = "Shared room"
+            if self.room_type == 'Unknown':
+                logger.warning("No room_type found for room " + str(self.room_id))
 
             # -- neighborhood --
             temp2 = tree.xpath(
@@ -551,14 +544,11 @@ class Listing():
                 "/following-sibling::td/descendant::text()")
             if len(temp2) > 0:
                 s = temp2[0].strip()
-                listing.neighborhood = s[s.find("(")+1:s.find(")")]
+                self.neighborhood = s[s.find("(")+1:s.find(")")]
             elif len(temp1) > 0:
-                listing.neighborhood = temp1[0].strip()
-            else:
-                logger.warning("No neighborhood found for room "
-                                   + str(listing.room_id))
-            if listing.neighborhood is not None:
-                listing.neighborhood = listing.neighborhood[:50]
+                self.neighborhood = temp1[0].strip()
+            if self.neighborhood is not None:
+                self.neighborhood = self.neighborhood[:50]
 
             # -- address --
             temp = tree.xpath(
@@ -566,7 +556,7 @@ class Listing():
                 )
             if len(temp) > 0:
                 s = temp[0].strip()
-                listing.address = s[:s.find(",")]
+                self.address = s[:s.find(",")]
             else:
                 # try old page match
                 temp = tree.xpath(
@@ -574,9 +564,7 @@ class Listing():
                     "/@data-location"
                     )
                 if len(temp) > 0:
-                    listing.address = temp[0]
-                else:
-                    logger.info("No address found for room " + str(listing.room_id))
+                    self.address = temp[0]
 
             # -- reviews --
             # 2015-10-02
@@ -586,23 +574,22 @@ class Listing():
                     )
             if len(temp2) == 1:
                 summary = json.loads(temp2[0])
-                listing.reviews = summary["visibleReviewCount"]
+                self.reviews = summary["visibleReviewCount"]
             elif len(temp2) == 0:
                 temp = tree.xpath("//div[@id='room']/div[@id='reviews']//h4/text()")
-                listing.reviews = temp[0].strip()
-                listing.reviews = reviews.split('+')[0]
-                listing.reviews = reviews.split(' ')[0].strip()
-                if listing.reviews == "No":
-                    listing.reviews = 0
+                if len(temp) > 0:
+                        self.reviews = temp[0].strip()
+                        self.reviews = self.reviews.split('+')[0]
+                        self.reviews = self.reviews.split(' ')[0].strip()
+                if self.reviews == "No":
+                    self.reviews = 0
             else:
                 # try old page match
                 temp = tree.xpath(
                     "//span[@itemprop='reviewCount']/text()"
                     )
                 if len(temp) > 0:
-                    listing.reviews = temp[0]
-                else:
-                    logger.info("No reviews found for room " + str(listing.room_id))
+                    self.reviews = temp[0]
 
             # -- accommodates --
             # new version Dec 2014
@@ -612,8 +599,7 @@ class Listing():
                 "/../strong/text()"
                     )
             if len(temp) > 0:
-                listing.accommodates = temp[0].strip()
-                logging.debug("Accommodates " + str(listing.accommodates))
+                self.accommodates = temp[0].strip()
             else:
                 temp = tree.xpath(
                     "//div[@class='col-md-6']"
@@ -621,7 +607,7 @@ class Listing():
                     "/strong/text()"
                     )
                 if len(temp) > 0:
-                    listing.accommodates = temp[0].strip()
+                    self.accommodates = temp[0].strip()
                 else:
                     temp = tree.xpath(
                     "//div[@class='col-md-6']"
@@ -629,13 +615,10 @@ class Listing():
                     "/strong/text()"
                     )
                     if len(temp) > 0:
-                        listing.accommodates = temp[0].strip()
-            if listing.accommodates:
-                listing.accommodates = listing.accommodates.split('+')[0]
-                listing.accommodates = listing.accommodates.split(' ')[0]
-            else:
-                logger.warning("No accommodates found for room "
-                               + str(listing.room_id))
+                        self.accommodates = temp[0].strip()
+            if self.accommodates:
+                self.accommodates = self.accommodates.split('+')[0]
+                self.accommodates = self.accommodates.split(' ')[0]
 
             # -- bedrooms --
             # new version Dec 2014
@@ -645,7 +628,7 @@ class Listing():
                 "/../strong/text()"
                 )
             if len(temp) > 0:
-                listing.bedrooms = temp[0].strip()
+                self.bedrooms = temp[0].strip()
             else:
                 temp = tree.xpath(
                     "//div[@class='col-md-6']"
@@ -653,12 +636,10 @@ class Listing():
                     "/strong/text()"
                     )
                 if len(temp) > 0:
-                    listing.bedrooms = temp[0].strip()
-            if listing.bedrooms:
-                listing.bedrooms = listing.bedrooms.split('+')[0]
-                listing.bedrooms = listing.bedrooms.split(' ')[0]
-            else:
-                logger.warning("No bedrooms found for room " + str(listing.room_id))
+                    self.bedrooms = temp[0].strip()
+            if self.bedrooms:
+                self.bedrooms = self.bedrooms.split('+')[0]
+                self.bedrooms = self.bedrooms.split(' ')[0]
 
             # -- bathrooms --
             temp3 = tree.xpath(
@@ -667,7 +648,7 @@ class Listing():
                 "/../strong/text()"
                 )
             if len(temp) > 0:
-                listing.bathrooms = temp[0].strip()
+                self.bathrooms = temp[0].strip()
             else:
                 temp = tree.xpath(
                     "//div[@class='col-md-6']"
@@ -675,12 +656,10 @@ class Listing():
                     "/../strong/text()"
                     )
                 if len(temp) > 0:
-                    listing.bathrooms = temp[0].strip()
-            if listing.bathrooms:
-                listing.bathrooms = listing.bathrooms.split('+')[0]
-                listing.bathrooms = listing.bathrooms.split(' ')[0]
-            else:
-                logger.info("No bathrooms found for room " + str(listing.room_id))
+                    self.bathrooms = temp[0].strip()
+            if self.bathrooms:
+                self.bathrooms = self.bathrooms.split('+')[0]
+                self.bathrooms = self.bathrooms.split(' ')[0]
 
             # -- minimum stay --
             temp3 = tree.xpath(
@@ -699,16 +678,14 @@ class Listing():
                 "/following-sibling::td/descendant::text()"
                 )
             if len(temp3) > 0:
-                listing.minstay = temp3[0].strip()
+                self.minstay = temp3[0].strip()
             elif len(temp2) > 0:
-                listing.minstay = temp2[0].strip()
+                self.minstay = temp2[0].strip()
             elif len(temp1) > 0:
-                listing.minstay = temp1[0].strip()
-            else:
-                logger.info("No minstay found for room " + str(listing.room_id))
-            if listing.minstay is not None:
-                listing.minstay = listing.minstay.split('+')[0]
-                listing.minstay = listing.minstay.split(' ')[0]
+                self.minstay = temp1[0].strip()
+            if self.minstay is not None:
+                self.minstay = self.minstay.split('+')[0]
+                self.minstay = self.minstay.split(' ')[0]
 
             # -- price --
             # Price is returned in the currency where your request comes from
@@ -719,40 +696,42 @@ class Listing():
                     "//div[@id='price_amount']/text()"
                 )
             if len(temp2) > 0:
-                listing.price=temp2[0]
+                self.price=temp2[0]
             elif len(temp1) > 0:
-                listing.price = temp[0][1:]
+                self.price = temp[0][1:]
                 non_decimal = re.compile(r'[^\d.]+')
-                listing.price = non_decimal.sub('', price)
+                self.price = non_decimal.sub('', price)
             else:
                 # old page match is the same
-                logger.info("No price found for room " + str(listing.room_id))
+                logger.info("No price found for room " + str(self.room_id))
             # Now find out if it's per night or per month (see if the per_night div
             # is hidden)
             per_month = tree.xpath("//div[@class='js-per-night book-it__payment-period  hide']")
             if per_month:
-                listing.price = int(int(listing.price) / 30)
+                self.price = int(int(self.price) / 30)
 
-            if listing.has_been_deleted():
-                logger.warn("Room " + str(listing.room_id) + " has probably been deleted")
-                listing.deleted = 1
+            if self.status_check() is False:
+                logger.warn("Room " + str(self.room_id) + " has probably been deleted")
+                self.deleted = 1
             if flag == FLAGS_ADD:
-                listing.print_from_web_site()
-                listing.save(FLAGS_INSERT_REPLACE)
+                self.save(FLAGS_INSERT_REPLACE)
             elif flag == FLAGS_PRINT:
-                listing.print_from_web_site()
+                self.print_from_web_site()
             return True
         except KeyboardInterrupt:
             raise
         except IndexError:
-            logger.error("Web page has unexpected structure.")
+            logger.exception("Web page has unexpected structure.")
             raise
         except UnicodeEncodeError as uee:
-            logger.error("UnicodeEncodeError Exception at " + 
+            logger.exception("UnicodeEncodeError Exception at " + 
                 str(uee.object[uee.start:uee.end])) 
             raise
         except AttributeError as ae:
-            logger.error("AttributeError: " + ae.message)
+            logger.exception("AttributeError")
+            raise
+        except TypeError as te:
+            logger.exception("TypeError parsing web page.")
             raise
         except Exception as e:
             logger.exception("Error parsing web page.")
@@ -1278,101 +1257,109 @@ def ws_get_city_info(city, flag):
 
 def ws_airbnb_is_live():
     try:
-        urllib.request.urlopen(URL_ROOT)
-        return True         # URL Exist
-    except ValueError as ex:
-        return False        # URL not well formatted
-    except urllib.URLError as ex:
+        r = requests.get(URL_ROOT)
+        if r.status_code == requests.codes.ok:
+            return True         # URL Exist
+        else:
+            return False
+    except Exception:
+        logger.exception("Exception in ws_airbnb_is_live")
         return False        # URL don't seem to be alive
 
 
-def ws_get_page(url):
+def ws_request_page(url, params=None):
+    """
+    Individual request
+    """
+    try:
+        headers={'User-Agent': 'Mozilla/5.0'}
+        # If there is a list of proxies supplied, use it
+        http_proxy = None
+        if HTTP_PROXY_LIST is not None:
+            http_proxy = random.choice(HTTP_PROXY_LIST)
+            proxies = {
+                'http': http_proxy,
+                'https': http_proxy,
+            }
+        else:
+            proxies=None
+        # Now make the request
+        logger.debug("Requesting page through proxy " + http_proxy)
+        r = requests.get(url, params, headers=headers, proxies=proxies)
+        if r.status_code == 200: # success
+            return r.text
+        elif r.status_code == 503:
+            if random.random() < 0.5:
+                if http_proxy is None:
+                    # fill the proxy list again, and wait a long time, then restart
+                    init()
+                    time.sleep(RE_INIT_SLEEP_TIME) # be nice
+                    return False
+                elif len(HTTP_PROXY_LIST) < 1:
+                    logging.error("No proxies left in the list. Re-initializing.")
+                    init()
+                    time.sleep(RE_INIT_SLEEP_TIME) # be nice
+                    return False
+                else:
+                    pass
+    except KeyboardInterrupt:
+        sys.exit()
+    except requests.exceptions.ConnectionError as ce:
+        logger.error("Connection error " + str(ce) + " for proxy " + http_proxy)
+        if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
+            logger.error("Probable connectivity problem retrieving " +
+                         "web page " + url)
+            if ws_airbnb_is_live():
+                return False
+            else:
+                raise
+    except requests.exceptions.ConnectTimeout as ct:
+        logger.error("Connection error " + str(ct) + " for proxy " + http_proxy)
+        if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
+            logger.error("Probable connectivity problem retrieving " +
+                         "web page " + url)
+            if ws_airbnb_is_live():
+                return False
+            else:
+                raise
+    except requests.exceptions.Timeout as t:
+        logger.error("Connection error " + str(t) + " for proxy " + http_proxy)
+        if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
+            logger.error("Probable connectivity problem retrieving " +
+                         "web page " + url)
+            if ws_airbnb_is_live():
+                return False
+            else:
+                raise
+    except Exception as e:
+        logger.error("Failed to retrieve web page " + url)
+        logger.error("Exception type: " + type(exception).__name__)
+        if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
+            logger.error("Probable connectivity problem retrieving " +
+                         "web page " + url)
+            if ws_airbnb_is_live():
+                return False
+            else:
+                raise
+
+
+def ws_get_page(url, params=None):
     # chrome gets the JavaScript-loaded content as well
     # see http://webscraping.com/blog/Scraping-JavaScript-webpages-with-webkit/
     # r = Render(url)
     # page = r.frame.toHtml()
     try:
-        attempt = 0
         for attempt in range(MAX_CONNECTION_ATTEMPTS):
-            try:
-                # If there is a list of proxies supplied, use it
-                http_proxy = None
-                if HTTP_PROXY_LIST is not None:
-                    http_proxy = random.choice(HTTP_PROXY_LIST)
-                    proxy_handler = urllib.request.ProxyHandler({
-                        'http': http_proxy,
-                        'https': http_proxy,
-                    })
-                    opener = urllib.request.build_opener(proxy_handler)
-                    urllib.request.install_opener(opener)
-                # Now make the request
-                req = urllib.request.Request(url,
-                    headers={'User-Agent': 'Mozilla/5.0'}
-                )
-                response = urllib.request.urlopen(req, timeout=HTTP_TIMEOUT)
-                page = response.read()
-                break
-            except KeyboardInterrupt:
-                sys.exit()
-            except urllib.error.HTTPError as he:
-                if http_proxy is None:
-                    logger.error("HTTP error " + str(he.code))
-                    # fill the proxy list again, and wait a long time, then restart
-                    init()
-                    logging.info("Waiting to re-initialize: "
-                        + str(RE_INIT_SLEEP_TIME)
-                        + " seconds...")
-                    time.sleep(RE_INIT_SLEEP_TIME) # be nice
-                    return False
-                logger.error("HTTP error " + str(he.code) + " for proxy " + http_proxy)
-                if he.code == 503:
-                    if random.random() < 0.5:
-                        logging.error("Removing " + http_proxy + " from HTTP_PROXY_LIST")
-                        HTTP_PROXY_LIST.remove(http_proxy)
-                        if len(HTTP_PROXY_LIST) < 1:
-                            logging.error("No proxies left in the list. Re-initializing.")
-                            # fill the proxy list again, and wait a long time, then restart
-                            init()
-                            time.sleep(RE_INIT_SLEEP_TIME) # be nice
-                            return False
-                if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
-                    logger.error("Probable connectivity problem retrieving " +
-                                 "web page " + url)
-                    if ws_airbnb_is_live():
-                        return False
-                    else:
-                        raise
-            except NameError as ne:
-                logger.error("NameError: " + ne.message)
-                if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
-                    logger.error("Probable connectivity problem retrieving " +
-                                 "web page " + url)
-                else:
-                    pass
-            except Exception as e:
-                logger.error("Failed to retrieve web page " + url)
-                logger.error("Exception type: " + type(exception).__name__)
-                if attempt >= (MAX_CONNECTION_ATTEMPTS - 1):
-                    logger.error("Probable connectivity problem retrieving " +
-                                 "web page " + url)
-                    if ws_airbnb_is_live():
-                        return False
-                    else:
-                        raise
-        return page
-    except urllib.error.HTTPError:
-        raise
-    except urllib.error.URLError:
-        logger.error("URLError retrieving page")
-        raise
+            page = ws_request_page(url, params)
+            return page
     except NameError as ne:
-        logger.error("NameError retrieving page")
+        logger.exception("NameError retrieving page")
         return False
     except AttributeError as ae:
-        logger.error("AttributeError retrieving page")
+        logger.exception("AttributeError retrieving page")
         return False
     except Exception as e:
-        logger.error("Exception retrieving page: " + str(type(e)))
+        logger.exception("Exception retrieving page: " + str(type(e)))
         raise
 
 
@@ -1384,13 +1371,13 @@ def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
             str(zipcode) + ", " +
             str(guests) + " guests, " +
             "page " + str(page_number)  )
-        url = search_page_url(zipcode, guests,
+        (url, params) = search_page_url(zipcode, guests,
                               None, room_type,
                               page_number)
         sleep_time = REQUEST_SLEEP * random.random()
         logging.info("-- sleeping " + str(sleep_time) + " seconds...")
         time.sleep(sleep_time) # be nice
-        page = ws_get_page(url)
+        page = ws_get_page(url, params)
         if page is False:
             return 0
         tree = html.fromstring(page)
@@ -1437,13 +1424,13 @@ def ws_get_search_page_info(survey, room_type,
             str(neighborhood) + ", " +
             str(guests) + " guests, " +
             "page " + str(page_number)  )
-        url = search_page_url(survey.search_area_name, guests,
+        (url, params) = search_page_url(survey.search_area_name, guests,
                               neighborhood, room_type,
                               page_number)
         sleep_time = REQUEST_SLEEP * random.random()
         logging.info("-- sleeping " + str(sleep_time) + " seconds...")
         time.sleep(sleep_time) # be nice
-        page = ws_get_page(url)
+        page = ws_get_page(url, params)
         if page is False:
             return 0
         tree = html.fromstring(page)
@@ -1511,10 +1498,6 @@ def fill_loop_by_room():
                     pass
                 else: #Airbnb now seems to return nothing if a room has gone
                     listing.save_as_deleted()
-        except urllib.error.HTTPError as he:
-            if he.code == 503:
-                # failed to get a web page. Try again
-                pass
         except AttributeError as ae:
             logger.error("Attribute error: marking room as deleted.")
             listing.save_as_deleted()
@@ -1582,24 +1565,14 @@ def page_has_been_retrieved(survey_id, room_type, neighborhood_or_zipcode, guest
 def search_page_url(search_string, guests, neighborhood, room_type,
                     page_number):
     # search_string is either a search area name or a zipcode
-    url_root = URL_SEARCH_ROOT + search_string
-    url_suffix = "guests=" + str(guests)
+    url = URL_SEARCH_ROOT + search_string
+    params = {}
+    params["guests"] = str(guests)
     if neighborhood is not None:
-        url_suffix += "&"
-        url_suffix += urllib.parse.quote("neighborhoods[]")
-        url_suffix += "="
-    # Rome: Unicode wording, equal comparison failed
-    # to convert both args to unicode (prob url_suffix
-    # and urllib2.quote(neighborhood)
-        url_suffix += urllib.parse.quote(neighborhood)
-    url_suffix += "&"
-    url_suffix += urllib.parse.quote("room_types[]")
-    url_suffix += "="
-    url_suffix += urllib.parse.quote(room_type)
-    url_suffix += "&"
-    url_suffix += "page=" + str(page_number)
-    url = url_root + "?" + url_suffix
-    return url
+        params["neighborhoods[]"] = neighborhood
+    params["room_types[]"] = room_type
+    params["page"] = str(page_number)
+    return (url, params)
 
 
 def search_zipcode(zipcode, room_type, survey_id,
