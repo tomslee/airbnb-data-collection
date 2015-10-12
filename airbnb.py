@@ -55,19 +55,19 @@ SEARCH_MAX_GUESTS = None
 
 # URLs (fixed)
 URL_ROOT = "http://www.airbnb.com/"
-URL_ROOM_ROOT =URL_ROOT + "rooms/"
+URL_ROOM_ROOT = URL_ROOT + "rooms/"
 URL_HOST_ROOT = URL_ROOT + "users/show/"
 URL_SEARCH_ROOT = URL_ROOT + "s/"
 
 # Other internal constants
-SEARCH_AREA_GLOBAL="UNKNOWN" # special case: sample listings globally
+SEARCH_AREA_GLOBAL = "UNKNOWN" # special case: sample listings globally
 FLAGS_ADD = 1
 FLAGS_PRINT = 9
 FLAGS_INSERT_REPLACE = True
 FLAGS_INSERT_NO_REPLACE = False
 RE_INIT_SLEEP_TIME = 1800 # seconds
-SEARCH_BY_NEIGHBORHOOD=0 # default
-SEARCH_BY_ZIPCODE=1
+SEARCH_BY_NEIGHBORHOOD = 0 # default
+SEARCH_BY_ZIPCODE = 1
 
 # Script version
 # 2.5 is a bit of a rewrite: classes for Listing and Survey, and requests lib
@@ -91,7 +91,7 @@ filelog_handler.setFormatter(fl_formatter)
 logger.addHandler(filelog_handler)
 
 # global database connection
-_conn = None
+_CONN = None
 
 def init():
     try:
@@ -104,7 +104,7 @@ def init():
         config_file = username + ".config"
         if not os.path.isfile(config_file):
             logging.error("Configuration file " + config_file +
-            " not found.")
+                        " not found.")
             sys.exit()
         config.read(config_file)
         # database
@@ -121,7 +121,7 @@ def init():
         except Exception:
             logging.info("No http_proxy_list in " + username + ".config: not using proxies")
             HTTP_PROXY_LIST = None
-        MAX_CONNECTION_ATTEMPTS = int(config["NETWORK"]["max_connection_attempts"])
+        MAX_CONNECTION_ATTEMPTS = int(config["NETWORK"]["max_CONNection_attempts"])
         REQUEST_SLEEP = float(config["NETWORK"]["request_sleep"])
         HTTP_TIMEOUT = float(config["NETWORK"]["http_timeout"])
         # survey
@@ -136,17 +136,18 @@ def init():
 
 # get a database connection
 def connect():
+    """ Return a connection to the database"""
     try:
-        global _conn
-        if _conn is None:
-            _conn = psycopg2.connect(
+        global _CONN
+        if _CONN is None:
+            _CONN = psycopg2.connect(
                 user=DB_USER,
                 password=DB_PASSWORD,
                 host=DB_HOST,
                 port=DB_PORT,
                 database=DB_NAME)
-            _conn.set_client_encoding('UTF8')
-        return _conn
+            _CONN.set_client_encoding('UTF8')
+        return _CONN
     except psycopg2.OperationalError as pgoe:
         logger.error(pgoe.message)
         raise
@@ -175,13 +176,14 @@ class Listing():
         self.accommodates = None
         self.bedrooms = None
         self.bathrooms = None
-        self.price = None   
+        self.price = None  
         self.deleted = 0
         self.minstay = None
         self.latitude = None
         self.longitude = None
         self.survey_id  = survey_id
 
+        """ """
     def status_check(self):
         status = True # OK
         unassigned_values = {key:value 
@@ -197,15 +199,19 @@ class Listing():
             for key, val in unassigned_values.items():
                 if key=="overall_satisfaction" and "reviews" not in unassigned_values: 
                     if val is None and self.reviews > 2:
-                        logger.warning("Room " + str(self.room_id) + ": No value for " + key)
+                   
+                       logger.warning("Room " + str(self.room_id) + ": No value for " + key)
+               
                 elif val is None:
-                    logger.warning("Room " + str(self.room_id) + ": No value for " + key)
+                
+                   logger.warning("Room " + str(self.room_id) + ": No value for " + key)
         return status
 
     def get_columns(self):
         """
         Hack: callable(attr) includes methods with (self) as argument. Need to find a way to avoid these.
-        This hack does also provide the proper order, which matters
+        This hac
+         does also provide the proper order, which matters
         """
         # columns = [attr for attr in dir(self) if not callable(attr) and not attr.startswith("__")]
         columns = ("room_id", "host_id", "room_type", "country",
@@ -225,10 +231,13 @@ class Listing():
                 set deleted = 1, last_modified = now()::timestamp
                 where room_id = %s 
                 and survey_id = %s
+                """ """
             """
             cur = conn.cursor()
+            """ """
             cur.execute(sql, (self.room_id, self.survey_id))
             cur.close()
+            """ """
             conn.commit()
         except Exception:
             logger.error("Failed to save room as deleted")
@@ -236,8 +245,10 @@ class Listing():
 
     def save(self, insert_replace_flag):
         try:
+            """ """
             # does the room already exist?
             conn = connect()
+            """ """
             cur = conn.cursor()
             sql_select = """select count(*) 
                 from room 
@@ -430,8 +441,8 @@ class Listing():
     def __get_country(self, tree):
         try:
             temp = tree.xpath(
-                    "//meta[contains(@property,'airbedandbreakfast:country')]"
-                    "/@content"
+                "//meta[contains(@property,'airbedandbreakfast:country')]"
+                "/@content"
                     )
             if len(temp) > 0:
                 self.country = temp[0]
@@ -523,13 +534,13 @@ class Listing():
                     "//i[contains(concat(' ', @class, ' '), ' icon-entire-place ')]"
                     )
                 if len(temp_entire) > 0:
-                    room_type = "Entire home/apt"
+                    self.room_type = "Entire home/apt"
                 temp_private = tree.xpath(
                     "//div[@id='summary']"
                     "//i[contains(concat(' ', @class, ' '), ' icon-private-room ')]"
                     )
                 if len(temp_private) > 0:
-                    room_type = "Private room"
+                    self.room_type = "Private room"
                 temp_shared = tree.xpath(
                     "//div[@id='summary']"
                     "//i[contains(concat(' ', @class, ' '), ' icon-shared-room ')]"
@@ -580,18 +591,18 @@ class Listing():
         try:
             # 2015-10-02
             temp2 = tree.xpath(
-                    "//div[@class='___iso-state___p3summarybundlejs']"
-                    "/@data-state"
-                    )
+                "//div[@class='___iso-state___p3summarybundlejs']"
+                "/@data-state"
+                )
             if len(temp2) == 1:
                 summary = json.loads(temp2[0])
                 self.reviews = summary["visibleReviewCount"]
             elif len(temp2) == 0:
                 temp = tree.xpath("//div[@id='room']/div[@id='reviews']//h4/text()")
                 if len(temp) > 0:
-                        self.reviews = temp[0].strip()
-                        self.reviews = self.reviews.split('+')[0]
-                        self.reviews = self.reviews.split(' ')[0].strip()
+                    self.reviews = temp[0].strip()
+                    self.reviews = str(self.reviews).split('+')[0]
+                    self.reviews = str(self.reviews).split(' ')[0].strip()
                 if self.reviews == "No":
                     self.reviews = 0
             else:
@@ -610,7 +621,7 @@ class Listing():
                 "//div[@class='col-md-6']"
                 "/div/span[text()[contains(.,'Accommodates:')]]"
                 "/../strong/text()"
-                    )
+                )
             if len(temp) > 0:
                 self.accommodates = temp[0].strip()
             else:
@@ -623,9 +634,9 @@ class Listing():
                     self.accommodates = temp[0].strip()
                 else:
                     temp = tree.xpath(
-                    "//div[@class='col-md-6']"
-                    "//div[text()[contains(.,'Accommodates:')]]"
-                    "/strong/text()"
+                        "//div[@class='col-md-6']"
+                        "//div[text()[contains(.,'Accommodates:')]]"
+                        "/strong/text()"
                     )
                     if len(temp) > 0:
                         self.accommodates = temp[0].strip()
@@ -718,14 +729,14 @@ class Listing():
                 "//meta[@itemprop='price']/@content"
                 )
             temp1 = tree.xpath(
-                    "//div[@id='price_amount']/text()"
+                "//div[@id='price_amount']/text()"
                 )
             if len(temp2) > 0:
-                self.price=temp2[0]
+                self.price = temp2[0]
             elif len(temp1) > 0:
-                self.price = temp[0][1:]
+                self.price = temp1[0][1:]
                 non_decimal = re.compile(r'[^\d.]+')
-                self.price = non_decimal.sub('', price)
+                self.price = non_decimal.sub('', self.price)
             # Now find out if it's per night or per month (see if the per_night div
             # is hidden)
             per_month = tree.xpath("//div[@class='js-per-night book-it__payment-period  hide']")
@@ -863,6 +874,7 @@ class Survey():
             raise
         except Exception:
             raise
+
     def log_progress(self, room_type, neighborhood_id,
                                guests, page_number, has_rooms):
         try:
@@ -909,6 +921,7 @@ class Survey():
             cur.close()
             logger.error("No search area for survey_id " + str(survey.survey_id))
             raise
+
     def __search_loop_zipcodes(self, zipcodes, room_type, flag):
         try:
             for zipcode in zipcodes:
@@ -918,10 +931,10 @@ class Survey():
             raise
 
     def __search_loop_neighborhoods(self, neighborhoods, room_type, flag):
+        """Loop over neighborhoods in a city. No return."""
         try:
             for neighborhood in neighborhoods:
-                search_neighborhood(neighborhood, room_type, survey_id,
-                                    flag, search_area_name)
+                self.__search_neighborhood(neighborhood, room_type, flag)
         except Exception:
             raise
 
@@ -1407,7 +1420,7 @@ def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
             has_rooms = 0
         if flag == FLAGS_ADD:
             survey.log_progress(room_type, zipcode, guests,
-                                       page_number, has_rooms)
+                page_number, has_rooms)
         if room_count > 0:
             for room_element in room_elements:
                 room_id = int(room_element)
@@ -1427,8 +1440,8 @@ def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
         #else:
         #    logger.info(s.encode('utf8'))
         # unhandled at the moment
-        pass
-    except Exception:
+    except Exception as e:
+        logger.error("Exception type: " + type(e).__name__)
         raise
 
 def ws_get_search_page_info(survey, room_type,
@@ -1437,11 +1450,10 @@ def ws_get_search_page_info(survey, room_type,
         logger.info(
             room_type + ", " +
             str(neighborhood) + ", " +
-            str(guests) + " guests, " +
-            "page " + str(page_number)  )
+            str(guests) + " guests, " + 
+            "page " + str(page_number))
         (url, params) = search_page_url(survey.search_area_name, guests,
-                              neighborhood, room_type,
-                              page_number)
+            neighborhood, room_type, page_number)
         page = ws_get_page(url, params)
         if page is None:
             return 0
@@ -1458,7 +1470,7 @@ def ws_get_search_page_info(survey, room_type,
         if flag == FLAGS_ADD:
             neighborhood_id = db_get_neighborhood_id(survey.survey_id, neighborhood)
             survey.log_progress(room_type, neighborhood_id, guests,
-                                       page_number, has_rooms)
+                page_number, has_rooms)
         if room_count > 0:
             for room_element in room_elements:
                 room_id = int(room_element)
@@ -1493,6 +1505,9 @@ def display_host(host_id):
 
 
 def fill_loop_by_room():
+    """
+    Master routine for looping over rooms (after a search) to fill in the properties.
+    """
     room_count = 0
     while room_count < FILL_MAX_ROOM_COUNT:
         try:
@@ -1526,13 +1541,13 @@ def page_has_been_retrieved(survey_id, room_type, neighborhood_or_zipcode, guest
     cur = conn.cursor()
     has_rooms = 0
     try:
-        if search_by==SEARCH_BY_NEIGHBORHOOD:
+        if search_by == SEARCH_BY_NEIGHBORHOOD:
             neighborhood = neighborhood_or_zipcode
             # TODO: Currently fails when there are no neighborhoods
             if neighborhood is None:
                 has_rooms = -1
             else:
-                params =  (survey_id, room_type, neighborhood, guests, page_number,)
+                params = (survey_id, room_type, neighborhood, guests, page_number,)
                 logger.debug("Params: " + str(params))
                 sql = """
                 select spl.has_rooms
@@ -1549,7 +1564,7 @@ def page_has_been_retrieved(survey_id, room_type, neighborhood_or_zipcode, guest
                 logger.debug("has_rooms = " + str(has_rooms) + " for neighborhood " + neighborhood)
         else: # SEARCH_BY_ZIPCODE
             zipcode = int(neighborhood_or_zipcode)
-            params =  (survey_id, room_type, zipcode, guests, page_number,)
+            params = (survey_id, room_type, zipcode, guests, page_number,)
             logger.debug(params)
             sql = """
                 select spl.has_rooms
@@ -1564,8 +1579,7 @@ def page_has_been_retrieved(survey_id, room_type, neighborhood_or_zipcode, guest
             logger.debug("has_rooms = " + str(has_rooms) + " for zipcode " + str(zipcode))
     except Exception:
         has_rooms = -1
-        logger.exception("Exception in page_has_been_retrieved")
-        logger.debug("page has not been retrieved previously")
+        logger.debug("Page has not been retrieved previously")
     finally:
         cur.close()
         return has_rooms
@@ -1627,8 +1641,7 @@ def search_zipcode(zipcode, room_type, survey_id,
 
 def main():
     init()
-    parser = \
-        argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
             description='Manage a database of Airbnb listings.',
             usage='%(prog)s [options]')
     # Only one argument!
