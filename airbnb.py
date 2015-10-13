@@ -20,8 +20,6 @@ import argparse
 import sys
 import time
 import random
-import subprocess
-import requests
 import requests
 from lxml import html
 import psycopg2
@@ -94,6 +92,8 @@ logger.addHandler(filelog_handler)
 _CONN = None
 
 def init():
+    """ Read the configuration file <username>.config to set up the run
+    """
     try:
         config = configparser.ConfigParser()
         # look for username.config on both Windows (USERNAME) and Linux (USER)
@@ -103,8 +103,7 @@ def init():
             username = os.environ['USER']
         config_file = username + ".config"
         if not os.path.isfile(config_file):
-            logging.error("Configuration file " + config_file +
-                        " not found.")
+            logging.error("Configuration file " + config_file + " not found.")
             sys.exit()
         config.read(config_file)
         # database
@@ -156,14 +155,14 @@ def connect():
         raise
 
 
-# =============================================================================
-# Listing represents an Airbnb room_id, as captured at a moment in time. 
-# room_id, survey_id is the primary key.
-# Occasionally, a survey_id = None will happen, but for retrieving data 
-# straight from the web site, and not stored in the database.
-# =============================================================================
 class Listing():
-    def __init__(self, room_id, survey_id, room_type = None):
+    """
+    # Listing represents an Airbnb room_id, as captured at a moment in time. 
+    # room_id, survey_id is the primary key.
+    # Occasionally, a survey_id = None will happen, but for retrieving data 
+    # straight from the web site, and not stored in the database.
+    """
+    def __init__(self, room_id, survey_id, room_type=None):
         self.room_id = room_id
         self.host_id = None
         self.room_type = room_type
@@ -181,16 +180,17 @@ class Listing():
         self.minstay = None
         self.latitude = None
         self.longitude = None
-        self.survey_id  = survey_id
+        self.survey_id = survey_id
 
         """ """
+
     def status_check(self):
         status = True # OK
         unassigned_values = {key:value 
-                for key, value in vars(self).items() 
-                if not key.startswith('__') 
-                and not callable(key)
-                and value is None}
+        for key, value in vars(self).items() 
+        if not key.startswith('__') 
+        and not callable(key)
+        and value is None}
         if len(unassigned_values) > 6: #just a value indicating deleted
             logger.info("Room " + str(self.room_id) + ": marked deleted.")
             status = False # probably deleted
@@ -209,22 +209,22 @@ class Listing():
 
     def get_columns(self):
         """
-        Hack: callable(attr) includes methods with (self) as argument. Need to find a way to avoid these.
-        This hac
-         does also provide the proper order, which matters
+        Hack: callable(attr) includes methods with (self) as argument. 
+        Need to find a way to avoid these.
+        This hack does also provide the proper order, which matters
         """
         # columns = [attr for attr in dir(self) if not callable(attr) and not attr.startswith("__")]
-        columns = ("room_id", "host_id", "room_type", "country",
+        columns = ("room_id", "host_id", "room_type", "country", 
             "city", "neighborhood", "address", "reviews", "overall_satisfaction",
             "accommodates", "bedrooms", "bathrooms", "price", "deleted", "minstay",
             "latitude", "longitude", "survey_id", "last_modified",)
         return columns
 
-
     def save_as_deleted(self):
         try:
             logger.debug("Marking room deleted: " + str(self.room_id))
-            if self.survey_id == None: return
+            if self.survey_id == None:
+                return
             conn = connect()
             sql = """
                 update room 
@@ -234,21 +234,21 @@ class Listing():
                 """ """
             """
             cur = conn.cursor()
-            """ """
             cur.execute(sql, (self.room_id, self.survey_id))
             cur.close()
-            """ """
             conn.commit()
         except Exception:
             logger.error("Failed to save room as deleted")
             raise
 
     def save(self, insert_replace_flag):
+        """
+        Save a listing in the database. Delegates to lower-level methods
+        to do the actual database operations.
+        """
         try:
-            """ """
             # does the room already exist?
             conn = connect()
-            """ """
             cur = conn.cursor()
             sql_select = """select count(*) 
                 from room 
@@ -259,8 +259,10 @@ class Listing():
             if room_exists:
                 if self.deleted == 1:
                     self.save_as_deleted()
-                elif insert_replace_flag==FLAGS_INSERT_REPLACE:
+                elif insert_replace_flag == FLAGS_INSERT_REPLACE:
                     self.__update()
+                else:
+                    logger.info("Room already present: " + str(self.room_id))
             else:
                 self.__insert()
         except psycopg2.DatabaseError as pgdbe:
@@ -280,7 +282,6 @@ class Listing():
                 logger.error("Diagnostics " + pge.diag.message_primary)
             else:
                 logger.info("Listing already saved: " + str(self.room_id))
-                pass   # not a problem
         except ValueError as ve:
             logger.error("ValueError for room_id = " + str(self.room_id))
             cur.close()
@@ -290,7 +291,7 @@ class Listing():
             raise
         except UnicodeEncodeError as uee:
             logger.error("UnicodeEncodeError Exception at " + 
-                    str(uee.object[uee.start:uee.end])) 
+                str(uee.object[uee.start:uee.end])) 
             raise
         except AttributeError as ae:
             logger.error("AttributeError")
@@ -302,32 +303,34 @@ class Listing():
             raise
 
     def print_from_web_site(self):
+        """ What is says """
         try:
-            s = "Room info:"
-            s += "\n\troom_id:\t" + str(self.room_id)
-            s += "\n\tsurvey_id:\t" + str(self.survey_id)
-            s += "\n\thost_id:\t" + str(self.host_id)
-            s += "\n\troom_type:\t" + str(self.room_type)
-            s += "\n\tcountry:\t" + str(self.country)
+            print_string = "Room info:"
+            print_string += "\n\troom_id:\t" + str(self.room_id)
+            print_string += "\n\tsurvey_id:\t" + str(self.survey_id)
+            print_string += "\n\thost_id:\t" + str(self.host_id)
+            print_string += "\n\troom_type:\t" + str(self.room_type)
+            print_string += "\n\tcountry:\t" + str(self.country)
                 #print("\tcity:", str(city.encode(encoding="cp850", errors="ignore")))
-            s += "\n\tcity:\t\t" + str(self.city)
-            s += "\n\tneighborhood:\t" + str(self.neighborhood)
-            s += "\n\taddress:\t" + str(self.address)
-            s += "\n\treviews:\t" + str(self.reviews)
-            s += "\n\toverall_satisfaction:\t" + str(self.overall_satisfaction)
-            s += "\n\taccommodates:\t" + str(self.accommodates)
-            s += "\n\tbedrooms:\t" + str(self.bedrooms)
-            s += "\n\tbathrooms:\t" + str(self.bathrooms)
-            s += "\n\tprice:\t\t" + str(self.price)
-            s += "\n\tdeleted:\t" + str(self.deleted)
-            s += "\n\tlatitude:\t" + str(self.latitude)
-            s += "\n\tlongitude:\t" + str(self.longitude)
-            s += "\n\tminstay:\t" + str(self.minstay)
-            print(s)
+            print_string += "\n\tcity:\t\t" + str(self.city)
+            print_string += "\n\tneighborhood:\t" + str(self.neighborhood)
+            print_string += "\n\taddress:\t" + str(self.address)
+            print_string += "\n\treviews:\t" + str(self.reviews)
+            print_string += "\n\toverall_satisfaction:\t" + str(self.overall_satisfaction)
+            print_string += "\n\taccommodates:\t" + str(self.accommodates)
+            print_string += "\n\tbedrooms:\t" + str(self.bedrooms)
+            print_string += "\n\tbathrooms:\t" + str(self.bathrooms)
+            print_string += "\n\tprice:\t\t" + str(self.price)
+            print_string += "\n\tdeleted:\t" + str(self.deleted)
+            print_string += "\n\tlatitude:\t" + str(self.latitude)
+            print_string += "\n\tlongitude:\t" + str(self.longitude)
+            print_string += "\n\tminstay:\t" + str(self.minstay)
+            print(print_string)
         except Exception:
             raise
 
     def print_from_db(self):
+        """ What it says """
         try:
             columns = self.get_columns()
             sql = "select room_id"
@@ -354,6 +357,7 @@ class Listing():
             raise
 
     def ws_get_room_info(self, flag):
+        """ Get the room properties from the web site """
         try:
             # initialization
             logger.info("-" * 70)
@@ -366,24 +370,20 @@ class Listing():
                 self.__get_room_info_from_tree(tree, flag)
                 return True
         except BrokenPipeError as bpe:
-            logger.error(bpe.message)
             raise
         except KeyboardInterrupt:
             logger.error("Keyboard interrupt")
             raise
-        except UnicodeEncodeError as uee:
-            logger.error("UnicodeEncodeError Exception at " + 
-                    str(uee.object[uee.start:uee.end])) 
-        except Exception as e:
+        except Exception as ex:
             logger.exception("Failed to get room " + str(self.room_id) + " from web site.")
-            logger.error("Exception: " + str(type(e)))
+            logger.error("Exception: " + str(type(ex)))
             raise
 
     def __insert(self):
+        """ Insert a room into the database. Raise an error if it fails """ 
         try:
             conn = connect()
             cur = conn.cursor()
-            logger.debug("Inserting... ")
             sql = """
                 insert into room (
                     room_id, host_id, room_type, country, city,
@@ -410,6 +410,7 @@ class Listing():
             raise
 
     def __update(self):
+        """ Update a room in the database. Raise an error if it fails """
         try:
             conn = connect()
             cur = conn.cursor()
@@ -443,7 +444,7 @@ class Listing():
             temp = tree.xpath(
                 "//meta[contains(@property,'airbedandbreakfast:country')]"
                 "/@content"
-                    )
+                )
             if len(temp) > 0:
                 self.country = temp[0]
         except:
@@ -459,7 +460,7 @@ class Listing():
                 self.city = temp[0]
         except:
             raise
-        
+       
     def __get_rating(self, tree):
         try:
             temp = tree.xpath(
@@ -559,8 +560,8 @@ class Listing():
                 "//td[text()[contains(.,'Neighborhood:')]]"
                 "/following-sibling::td/descendant::text()")
             if len(temp2) > 0:
-                s = temp2[0].strip()
-                self.neighborhood = s[s.find("(")+1:s.find(")")]
+                temp = temp2[0].strip()
+                self.neighborhood = temp[temp.find("(")+1:temp.find(")")]
             elif len(temp1) > 0:
                 self.neighborhood = temp1[0].strip()
             if self.neighborhood is not None:
@@ -574,8 +575,8 @@ class Listing():
                 "//div[contains(@class,'rich-toggle')]/@data-address"
                 )
             if len(temp) > 0:
-                s = temp[0].strip()
-                self.address = s[:s.find(",")]
+                temp = temp[0].strip()
+                self.address = temp[:temp.find(",")]
             else:
                 # try old page match
                 temp = tree.xpath(
@@ -722,7 +723,6 @@ class Listing():
         except:
             raise
 
-
     def __get_price(self, tree):
         try:
             temp2 = tree.xpath(
@@ -804,6 +804,7 @@ class Listing():
 # Survey class: information and methods around a search
 # ==============================================================================
 class Survey():
+
     def __init__(self, survey_id):
         self.survey_id = survey_id
         self.search_area_id = None
@@ -823,8 +824,6 @@ class Survey():
                         if room_id is None:
                             break
                         else:
-                            if HTTP_PROXY_LIST is not None:
-                                logging.info("---- Currently using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
                             if listing.ws_get_room_info(FLAGS_ADD):
                                 room_count += 1
                     except AttributeError as ae:
@@ -834,38 +833,41 @@ class Survey():
                         logger.error("Error in fill_loop_by_room:" + str(type(e)))
                         raise
             else:
-                # add in all listings from previous surveys of this search area
-                #TODO: do this as an INSERT from SELECT to avoid the round trip
-                conn = connect()
-                sql_insert = """
-                    insert into room (room_id, survey_id)
-                    select distinct r.room_id, %s
-                    from room r, survey s, search_area sa
-                    where r.survey_id = s.survey_id
-                    and s.search_area_id = sa.search_area_id
-                    and sa.search_area_id = %s
-                    and s.survey_id < %s
-                    and r.room_id not in (
-                        select room_id from room
-                        where survey_id = %s
-                        )
+                # add in  listings from previous surveys of this search area
+                try:
+                    conn = connect()
+                    sql_insert = """
+                    insert into room (room_id, survey_id, room_type)
+                    select distinct r.room_id, %s, max(room_type) 
+                      from room r, survey s, search_area sa
+                      where r.survey_id = s.survey_id
+                      and s.search_area_id = sa.search_area_id
+                      and sa.search_area_id = %s
+                      and s.survey_id < %s
+                      and deleted = 0
+                      and date_part('month', age(now(), r.last_modified)) < 6
+                      and s.survey_id < %s
+                      group by 1
                     """
-                cur = conn.cursor()
-                cur.execute(sql_insert, (self.survey_id,
-                    self.search_area_id, self.survey_id, self.survey_id,))
-                cur.close()
-                conn.commit()
+                    cur = conn.cursor()
+                    cur.execute(sql_insert, (self.survey_id,
+                        self.search_area_id, self.survey_id, self.survey_id,))
+                    cur.close()
+                    conn.commit()
+                except psycopg2.IntegrityError as ie:
+                    logger.error("IntegrityError: rows already inserted? Continuing...")
+                    conn.rollback()
 
                 # Loop over neighborhoods or zipcode
                 if search_by == SEARCH_BY_ZIPCODE:
                     zipcodes = db_get_zipcodes_from_search_area(self.search_area_id)
-                    for room_type in ( "Private room", "Entire home/apt",):
-                        logger.debug("Searching for %(rt)s by zipcode" % {"rt": room_type})
+                    for room_type in ("Private room", "Entire home/apt",):
+                        logger.debug("Searching for %(rt)s by zipcode", {"rt": room_type})
                         self.__search_loop_zipcodes(zipcodes, room_type, flag)
                 else:
                     neighborhoods = db_get_neighborhoods_from_search_area(self.search_area_id)
-                    for room_type in ( "Private room", "Entire home/apt", "Shared room",):
-                        logger.debug("Searching for %(rt)s by neighborhood" % {"rt": room_type})
+                    for room_type in ("Private room", "Entire home/apt", "Shared room",):
+                        logger.debug("Searching for %(rt)s by neighborhood", {"rt": room_type})
                         if len(neighborhoods) > 0:
                             self.__search_loop_neighborhoods(neighborhoods, room_type, flag)
                         else:
@@ -879,7 +881,7 @@ class Survey():
                                guests, page_number, has_rooms):
         try:
             page_info = (self.survey_id, room_type, neighborhood_id, 
-                    guests, page_number, has_rooms)
+                guests, page_number, has_rooms)
             logger.debug("Survey search page: " + str(page_info))
             sql = """
             insert into survey_progress_log (survey_id, room_type, neighborhood_id,
@@ -891,7 +893,7 @@ class Survey():
             cur.execute(sql, page_info)
             cur.close()
             conn.commit()
-            logger.info("Logging survey search page for neighborhood " + str(neighborhood_id))
+            logger.debug("Logging survey search page for neighborhood " + str(neighborhood_id))
             return True
         except psycopg2.Error as pge:
             logger.error(pge.pgerror)
@@ -901,7 +903,6 @@ class Survey():
         except Exception:
             logger.error("Save survey search page failed")
             return False
-
 
     def __set_search_area(self):
         try:
@@ -919,14 +920,14 @@ class Survey():
             raise
         except Exception:
             cur.close()
-            logger.error("No search area for survey_id " + str(survey.survey_id))
+            logger.error("No search area for survey_id " + str(self.survey_id))
             raise
 
     def __search_loop_zipcodes(self, zipcodes, room_type, flag):
         try:
             for zipcode in zipcodes:
-                search_zipcode(str(zipcode), room_type, survey_id,
-                                    flag, search_area_name)
+                search_zipcode(str(zipcode), room_type, self.survey_id,
+                    flag, self.search_area_name)
         except Exception:
             raise
 
@@ -945,7 +946,7 @@ class Survey():
             else:
                 max_guests = SEARCH_MAX_GUESTS
             for guests in range(1, max_guests):
-                logger.debug("Searching for %(g)i guests" % {"g": guests})
+                logger.debug("Searching for %(g)i guests", {"g": guests})
                 for page_number in range(1, SEARCH_MAX_PAGES):
                     if flag != FLAGS_PRINT:
                         # for FLAGS_PRINT, fetch one page and print it
@@ -953,13 +954,13 @@ class Survey():
                             self.survey_id, room_type,
                             neighborhood, guests, page_number, SEARCH_BY_NEIGHBORHOOD)
                         if count == 1:
-                            logger.debug("\t...search page has been visited previously")
+                            logger.info("\t...search page has been visited previously")
                             continue
                         elif count == 0:
-                            logger.debug("\t...search page has been visited previously")
+                            logger.info("\t...search page has been visited previously")
                             break
                         else:
-                            logger.debug("\t...visiting search page")
+                            logger.info("\t...visiting search page")
                     room_count = ws_get_search_page_info(
                         self, room_type, neighborhood, guests, page_number, flag)
                     if room_count <= 0:
@@ -1038,8 +1039,8 @@ def list_surveys():
             template = "| {0:3} | {1:>12} | {2:>30} | {3:3} |"
             print(template.format("ID", "Date", "Description", "SA"))
             for survey in result_set:
-                (id, survey_date, desc, sa_id) = survey
-                print(template.format(id, survey_date, desc, sa_id))
+                (survey_id, survey_date, desc, sa_id) = survey
+                print(template.format(survey_id, survey_date, desc, sa_id))
     except Exception:
         logger.error("Cannot list surveys.")
         raise
@@ -1310,8 +1311,8 @@ def ws_get_city_info(city, flag):
 
 def ws_airbnb_is_live():
     try:
-        r = requests.get(URL_ROOT)
-        if r.status_code == requests.codes.ok:
+        response = requests.get(URL_ROOT)
+        if response.status_code == requests.codes.ok:
             return True         # URL Exist
         else:
             return False
@@ -1333,26 +1334,27 @@ def ws_request_page(url, params=None):
         page = None
 
         #headers
-        headers={'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         # timeout
-        timeout=HTTP_TIMEOUT 
+        timeout = HTTP_TIMEOUT 
   
         # If there is a list of proxies supplied, use it
         http_proxy = None
         if HTTP_PROXY_LIST is not None:
+            logging.info("---- Using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
             http_proxy = random.choice(HTTP_PROXY_LIST)
             proxies = {
                 'http': http_proxy,
                 'https': http_proxy,
             }
         else:
-            proxies=None
+            proxies = None
         # Now make the request
         logger.debug("Requesting page through proxy " + http_proxy)
-        r = requests.get(url, params, timeout=timeout, headers=headers, proxies=proxies)
-        if r.status_code == requests.codes.ok : # success
-            page = r.text
-        elif r.status_code == 503:
+        response = requests.get(url, params, timeout=timeout, headers=headers, proxies=proxies)
+        if response.status_code == requests.codes.ok: # success
+            page = response.text
+        elif response.status_code == 503:
             logger.warning("503 error for proxy " + http_proxy)
             if random.random() < 0.5:
                 if http_proxy is None or len(HTTP_PROXY_LIST) < 1:
@@ -1364,11 +1366,14 @@ def ws_request_page(url, params=None):
                     # remove the proxy from the proxy list
                     logger.warning("Removing " + http_proxy + " from proxy list.")
                     HTTP_PROXY_LIST.remove(http_proxy)
-        return(r.status_code, page)
+        return(response.status_code, page)
     except KeyboardInterrupt:
         sys.exit()
+    except requests.exceptions.ConnectionError as ce:
+        logger.error("Failed request: ConnectionError")
+        return(-1, None)
     except requests.exceptions.ReadTimeout as rt:
-        logger.error("Failed request: ReadTimeoutError")
+        logger.error("Failed request: ReadTimeout")
         return(-1, None)
     except Exception as e:
         logger.exception("Exception type: " + type(e).__name__)
@@ -1385,26 +1390,21 @@ def ws_get_page(url, params=None):
                 logger.warning("Request failure " + str(attempt + 1) + ": trying again")
         except AttributeError as ae:
             logger.exception("AttributeError retrieving page")
-        except Exception as e:
-            logger.exception("Exception retrieving page: " + str(type(e)))
-            logger.error("Exception type: " + type(exception).__name__)
-    # Failed
-    logger.error("Failed to retrieve web page " + url)
-    logger.error("Exception type: " + type(exception).__name__)
+        except Exception as ex:
+            logger.error("Failed to retrieve web page " + url)
+            logger.exception("Exception retrieving page: " + str(type(ex)))
+            # logger.error("Exception type: " + type(e).__name__)
+            # Failed
     return None
 
 
 def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
                             zipcode, guests, page_number, flag):
     try:
-        logger.info(
-            room_type + ", " +
-            str(zipcode) + ", " +
-            str(guests) + " guests, " +
-            "page " + str(page_number)  )
-        (url, params) = search_page_url(zipcode, guests,
-                              None, room_type,
-                              page_number)
+        logger.info(room_type + ", " + str(zipcode) + ", " + 
+            str(guests) + " guests, " + "page " + str(page_number))
+        (url, params) = search_page_url(zipcode, guests, 
+            None, room_type, page_number)
         page = ws_get_page(url, params)
         if page is None:
             return 0
@@ -1419,8 +1419,7 @@ def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
         else:
             has_rooms = 0
         if flag == FLAGS_ADD:
-            survey.log_progress(room_type, zipcode, guests,
-                page_number, has_rooms)
+            survey.log_progress(room_type, zipcode, guests, page_number, has_rooms)
         if room_count > 0:
             for room_element in room_elements:
                 room_id = int(room_element)
@@ -1469,9 +1468,9 @@ def ws_get_search_page_info(survey, room_type,
             has_rooms = 0
         if flag == FLAGS_ADD:
             neighborhood_id = db_get_neighborhood_id(survey.survey_id, neighborhood)
-            survey.log_progress(room_type, neighborhood_id, guests,
-                page_number, has_rooms)
+            survey.log_progress(room_type, neighborhood_id, guests, page_number, has_rooms)
         if room_count > 0:
+            logger.info("Found " + str(room_count) + " rooms")
             for room_element in room_elements:
                 room_id = int(room_element)
                 if room_id is not None:
@@ -1491,7 +1490,6 @@ def ws_get_search_page_info(survey, room_type,
         #else:
         #    logger.info(s.encode('utf8'))
         # unhandled at the moment
-        pass
     except Exception:
         raise
 
@@ -1516,8 +1514,6 @@ def fill_loop_by_room():
             if listing.room_id is None:
                 break
             else:
-                if HTTP_PROXY_LIST is not None:
-                    logging.info("---- Currently using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
                 if listing.ws_get_room_info(FLAGS_ADD):
                     pass
                 else: #Airbnb now seems to return nothing if a room has gone
@@ -1599,14 +1595,14 @@ def search_page_url(search_string, guests, neighborhood, room_type,
 
 
 def search_zipcode(zipcode, room_type, survey_id,
-                        flag, search_area_name):
+    flag, search_area_name):
     try:
         if room_type in ("Private room", "Shared room"):
             max_guests = 4
         else:
             max_guests = SEARCH_MAX_GUESTS
         for guests in range(1, max_guests):
-            logger.debug("Searching for %(g)i guests" % {"g": guests})
+            logger.info("Searching for %(g)i guests", {"g": guests})
             for page_number in range(1, SEARCH_MAX_PAGES):
                 if flag != FLAGS_PRINT:
                     # for FLAGS_PRINT, fetch one page and print it
@@ -1615,10 +1611,10 @@ def search_zipcode(zipcode, room_type, survey_id,
                         survey_id, room_type,
                         str(zipcode), guests, page_number, SEARCH_BY_ZIPCODE)
                     if count == 1:
-                        logger.debug("\t...search page has been visited previously")
+                        logger.info("\t...search page has been visited previously")
                         continue
                     elif count == 0:
-                        logger.debug("\t...search page has been visited previously")
+                        logger.info("\t...search page has been visited previously")
                         break
                     else:
                         logger.debug("\t...visiting search page")
@@ -1642,8 +1638,8 @@ def search_zipcode(zipcode, room_type, survey_id,
 def main():
     init()
     parser = argparse.ArgumentParser(
-            description='Manage a database of Airbnb listings.',
-            usage='%(prog)s [options]')
+        description='Manage a database of Airbnb listings.',
+        usage='%(prog)s [options]')
     # Only one argument!
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-asa', '--addsearcharea',
@@ -1669,9 +1665,6 @@ def main():
     group.add_argument('-f', '--fill',
                        action='store_true', default=False,
                        help='fill in details for room_ids collected with -s')
-    group.add_argument('-g', '--geolocate',
-                       metavar='survey_id', type=int,
-                       help='geolocate entries in room table for the given survey')
     group.add_argument('-lsa', '--listsearcharea',
                        metavar='search_area', type=str,
                        help="""list information about this search area
@@ -1732,8 +1725,6 @@ def main():
             display_host(args.displayhost)
         elif args.displayroom:
             display_room(args.displayroom)
-        elif args.geolocate:
-            geolocate(args.geolocate)
         elif args.listsearcharea:
             list_search_area_info(args.listsearcharea)
         elif args.listroom:
@@ -1765,4 +1756,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
