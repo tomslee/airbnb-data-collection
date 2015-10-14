@@ -72,19 +72,20 @@ SEARCH_BY_ZIPCODE = 1
 # 2.3 released Jan 12, 2015, to handle a web site update
 SCRIPT_VERSION_NUMBER = 2.5
 
+LOG_LEVEL=logging.INFO
 # Set up logging
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(LOG_LEVEL)
 
 ch_formatter = logging.Formatter('%(levelname)-8s%(message)s')
 console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
+console_handler.setLevel(LOG_LEVEL)
 console_handler.setFormatter(ch_formatter)
 logger.addHandler(console_handler)
 
 fl_formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s%(message)s')
 filelog_handler = logging.FileHandler("run.log", encoding="utf-8")
-filelog_handler.setLevel(logging.INFO)
+filelog_handler.setLevel(LOG_LEVEL)
 filelog_handler.setFormatter(fl_formatter)
 logger.addHandler(filelog_handler)
 
@@ -138,7 +139,7 @@ def connect():
     """ Return a connection to the database"""
     try:
         global _CONN
-        if _CONN is None:
+        if _CONN is None or _CONN.closed != 0:
             _CONN = psycopg2.connect(
                 user=DB_USER,
                 password=DB_PASSWORD,
@@ -613,6 +614,8 @@ class Listing():
                     )
                 if len(temp) > 0:
                     self.reviews = temp[0]
+            if self.reviews is not None:
+                self.reviews = int(self.reviews)
         except:
             raise
 
@@ -829,8 +832,8 @@ class Survey():
                     except AttributeError as ae:
                         logger.error("Attribute error: marking room as deleted.")
                         listing.save_as_deleted()
-                    except Exception as e:
-                        logger.error("Error in fill_loop_by_room:" + str(type(e)))
+                    except Exception as ex:
+                        logger.exception("Error in searc:" + str(type(ex)))
                         raise
             else:
                 # add in  listings from previous surveys of this search area
