@@ -232,7 +232,6 @@ class Listing():
                 set deleted = 1, last_modified = now()::timestamp
                 where room_id = %s 
                 and survey_id = %s
-                """ """
             """
             cur = conn.cursor()
             cur.execute(sql, (self.room_id, self.survey_id))
@@ -248,57 +247,41 @@ class Listing():
         to do the actual database operations.
         """
         try:
-            # does the room already exist?
-            conn = connect()
-            cur = conn.cursor()
-            sql_select = """select count(*) 
-                from room 
-                where room_id = %s 
-                and survey_id = %s"""
-            cur.execute(sql_select, (self.room_id, self.survey_id,))
-            room_exists = bool(cur.fetchone()[0])
-            if room_exists:
-                if self.deleted == 1:
-                    self.save_as_deleted()
-                elif insert_replace_flag == FLAGS_INSERT_REPLACE:
-                    self.__update()
-                else:
-                    logger.info("Room already present: " + str(self.room_id))
+            if self.deleted == 1:
+                self.save_as_deleted()
             else:
-                self.__insert()
-        except psycopg2.DatabaseError as pgdbe:
+                if insert_replace_flag == FLAGS_INSERT_REPLACE:
+                    rowcount = self.__update()
+                if rowcount == 0 or insert_replace_flag == FLAGS_INSERT_NO_REPLACE:
+                    try:
+                        self.__insert()
+                    except psycopg2.IntegrityError:
+                        logger.info("Room already exists " + str(self.room_id))
+        except psycopg2.DatabaseError:
             # connection closed
             logger.error("Database error: set conn to None and resume")
-            conn = None
-        except psycopg2.InterfaceError as pgie:
+        except psycopg2.InterfaceError:
             # connection closed
             logger.error("Interface error: set conn to None and resume")
             conn = None
         except psycopg2.Error as pge:
             # database error: rollback operations and resume
-            cur.close()
             conn.rollback()
-            if insert_replace_flag:
-                logger.error("Database error: " + str(self.room_id))
-                logger.error("Diagnostics " + pge.diag.message_primary)
-            else:
-                logger.info("Listing already saved: " + str(self.room_id))
-        except ValueError as ve:
-            logger.error("ValueError for room_id = " + str(self.room_id))
-            cur.close()
+            logger.error("Database error: " + str(self.room_id))
+            logger.error("Diagnostics " + pge.diag.message_primary)
         except KeyboardInterrupt:
-            cur.close()
             conn.rollback()
             raise
         except UnicodeEncodeError as uee:
             logger.error("UnicodeEncodeError Exception at " + 
                 str(uee.object[uee.start:uee.end])) 
             raise
-        except AttributeError as ae:
+        except ValueError:
+            logger.error("ValueError for room_id = " + str(self.room_id))
+        except AttributeError:
             logger.error("AttributeError")
             raise
-        except Exception as e:
-            cur.close()
+        except Exception:
             conn.rollback()
             logger.error("Exception saving room")
             raise
@@ -362,8 +345,8 @@ class Listing():
         try:
             # initialization
             logger.info("-" * 70)
-            logger.info("Getting room " + str(self.room_id)
-                        + " from Airbnb web site")
+            logger.info("Room " + str(self.room_id)
+                        + ": getting from Airbnb web site")
             room_url = URL_ROOM_ROOT + str(self.room_id)
             page = ws_get_page(room_url)
             if page is not None:
@@ -376,7 +359,7 @@ class Listing():
             logger.error("Keyboard interrupt")
             raise
         except Exception as ex:
-            logger.exception("Failed to get room " + str(self.room_id) + " from web site.")
+            logger.exception("Room " + str(self.room_id) + ": failed to retrieve from web site.")
             logger.error("Exception: " + str(type(ex)))
             raise
 
@@ -407,12 +390,19 @@ class Listing():
             conn.commit()
             cur.close()
             logger.info("Room " + str(self.room_id) + ": inserted")
+        except psycopg2.IntegrityError:
+            logger.info("Room " + str(self.room_id) + ": insert failed")
+            conn.rollback()
+            raise
         except:
+            conn.rollback()
             raise
 
     def __update(self):
-        """ Update a room in the database. Raise an error if it fails """
+        """ Update a room in the database. Raise an error if it fails. 
+        Return number of rows affected."""
         try:
+            rowcount = 0
             conn = connect()
             cur = conn.cursor()
             logger.debug("Updating...")
@@ -434,9 +424,11 @@ class Listing():
                 self.longitude, self.room_id, self.survey_id,
                 )
             cur.execute(sql, update_args)
+            rowcount = cur.rowcount
             conn.commit()
             cur.close()
-            logger.info("Room " + str(self.room_id) + ": updated")
+            logger.info("Room " + str(self.room_id) + ": updated (" + str(rowcount) + ")")
+            return rowcount
         except:
             raise
 
@@ -881,9 +873,12 @@ class Survey():
             raise
 
     def log_progress(self, room_type, neighborhood_id,
-                               guests, page_number, has_rooms):
+        guests, page_number, has_rooms):
+        """ Add an entry to the survey_progress table to record the fact that a page has
+            been visited.
+        """
         try:
-            page_info = (self.survey_id, room_type, neighborhood_id, 
+            page_info = (self.survey_id, room_type, neighborhood_id,
                 guests, page_number, has_rooms)
             logger.debug("Survey search page: " + str(page_info))
             sql = """
@@ -1515,7 +1510,7 @@ def fill_loop_by_room():
             room_count += 1
             listing = db_get_room_to_fill()
             if listing.room_id is None:
-                break
+                return None
             else:
                 if listing.ws_get_room_info(FLAGS_ADD):
                     pass
