@@ -959,7 +959,7 @@ class Survey():
                             logger.info("\t...search page has been visited previously")
                             break
                         else:
-                            logger.info("\t...visiting search page")
+                            pass
                     room_count = ws_get_search_page_info(
                         self, room_type, neighborhood, guests, page_number, flag)
                     if room_count <= 0:
@@ -1400,6 +1400,7 @@ def ws_get_page(url, params=None):
 def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
                             zipcode, guests, page_number, flag):
     try:
+        logger.info("-" * 70)
         logger.info(room_type + ", " + str(zipcode) + ", " + 
             str(guests) + " guests, " + "page " + str(page_number))
         (url, params) = search_page_url(zipcode, guests, 
@@ -1445,6 +1446,7 @@ def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
 def ws_get_search_page_info(survey, room_type,
                     neighborhood, guests, page_number, flag):
     try:
+        logger.info("-" * 70)
         logger.info(
             room_type + ", " +
             str(neighborhood) + ", " +
