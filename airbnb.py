@@ -247,6 +247,7 @@ class Listing():
         to do the actual database operations.
         """
         try:
+            rowcount = -1
             if self.deleted == 1:
                 self.save_as_deleted()
             else:
@@ -391,7 +392,7 @@ class Listing():
             cur.close()
             logger.info("Room " + str(self.room_id) + ": inserted")
         except psycopg2.IntegrityError:
-            logger.info("Room " + str(self.room_id) + ": insert failed")
+            # logger.info("Room " + str(self.room_id) + ": insert failed")
             conn.rollback()
             raise
         except:
