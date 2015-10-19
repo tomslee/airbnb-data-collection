@@ -394,6 +394,7 @@ class Listing():
         except psycopg2.IntegrityError:
             # logger.info("Room " + str(self.room_id) + ": insert failed")
             conn.rollback()
+            cur.close()
             raise
         except:
             conn.rollback()
@@ -1187,6 +1188,8 @@ def db_get_search_area_info_from_db(search_area):
 
 def db_get_room_to_fill():
     try:
+        logger.info("Select room to fill: begin")
+        
         sql = """
         select room_id, survey_id
         from room
@@ -1201,6 +1204,9 @@ def db_get_room_to_fill():
         (room_id, survey_id) = cur.fetchone()
         listing = Listing(room_id, survey_id)
         cur.close()
+        conn.commit()
+
+        logger.info("Select room to fill: return")
         return listing
     except TypeError:
         logger.info("-- Finishing: no unfilled rooms in database --")
