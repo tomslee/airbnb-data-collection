@@ -926,8 +926,46 @@ class Survey():
     def __search_loop_zipcodes(self, zipcodes, room_type, flag):
         try:
             for zipcode in zipcodes:
-                search_zipcode(str(zipcode), room_type, self.survey_id,
+                self.__search_zipcode(str(zipcode), room_type, self.survey_id,
                     flag, self.search_area_name)
+        except Exception:
+            raise
+
+    def __search_zipcode(self, zipcode, room_type, survey_id,
+            flag, search_area_name):
+        try:
+            if room_type in ("Private room", "Shared room"):
+                max_guests = 4
+            else:
+                max_guests = SEARCH_MAX_GUESTS
+            for guests in range(1, max_guests):
+                logger.info("Searching for %(g)i guests", {"g": guests})
+                for page_number in range(1, SEARCH_MAX_PAGES):
+                    if flag != FLAGS_PRINT:
+                        # for FLAGS_PRINT, fetch one page and print it
+                        # this efficiency check can be implemented later
+                        count = page_has_been_retrieved(
+                            survey_id, room_type,
+                            str(zipcode), guests, page_number, SEARCH_BY_ZIPCODE)
+                        if count == 1:
+                            logger.info("\t...search page has been visited previously")
+                            continue
+                        elif count == 0:
+                            logger.info("\t...search page has been visited previously")
+                            break
+                        else:
+                            logger.debug("\t...visiting search page")
+                    room_count = ws_get_search_page_info_zipcode(
+                        self,
+                        room_type,
+                        zipcode,
+                        guests,
+                        page_number,
+                        flag)
+                    if room_count <= 0:
+                        break
+                    if flag == FLAGS_PRINT:
+                        return
         except Exception:
             raise
 
@@ -1188,8 +1226,6 @@ def db_get_search_area_info_from_db(search_area):
 
 def db_get_room_to_fill():
     try:
-        logger.info("Select room to fill: begin")
-        
         sql = """
         select room_id, survey_id
         from room
@@ -1205,13 +1241,11 @@ def db_get_room_to_fill():
         listing = Listing(room_id, survey_id)
         cur.close()
         conn.commit()
-
-        logger.info("Select room to fill: return")
         return listing
     except TypeError:
         logger.info("-- Finishing: no unfilled rooms in database --")
         conn = None
-        return (None, None)
+        return None
     except Exception:
         logger.error("Error retrieving room to fill from db")
         conn = None
@@ -1403,7 +1437,7 @@ def ws_get_page(url, params=None):
     return None
 
 
-def ws_get_search_page_info_zipcode(survey, search_area_name, room_type,
+def ws_get_search_page_info_zipcode(survey, room_type,
                             zipcode, guests, page_number, flag):
     try:
         logger.info("-" * 70)
@@ -1518,7 +1552,7 @@ def fill_loop_by_room():
         try:
             room_count += 1
             listing = db_get_room_to_fill()
-            if listing.room_id is None:
+            if listing is None:
                 return None
             else:
                 if listing.ws_get_room_info(FLAGS_ADD):
@@ -1600,45 +1634,6 @@ def search_page_url(search_string, guests, neighborhood, room_type,
     params["page"] = str(page_number)
     return (url, params)
 
-
-def search_zipcode(zipcode, room_type, survey_id,
-    flag, search_area_name):
-    try:
-        if room_type in ("Private room", "Shared room"):
-            max_guests = 4
-        else:
-            max_guests = SEARCH_MAX_GUESTS
-        for guests in range(1, max_guests):
-            logger.info("Searching for %(g)i guests", {"g": guests})
-            for page_number in range(1, SEARCH_MAX_PAGES):
-                if flag != FLAGS_PRINT:
-                    # for FLAGS_PRINT, fetch one page and print it
-                    # this efficiency check can be implemented later
-                    count = page_has_been_retrieved(
-                        survey_id, room_type,
-                        str(zipcode), guests, page_number, SEARCH_BY_ZIPCODE)
-                    if count == 1:
-                        logger.info("\t...search page has been visited previously")
-                        continue
-                    elif count == 0:
-                        logger.info("\t...search page has been visited previously")
-                        break
-                    else:
-                        logger.debug("\t...visiting search page")
-                room_count = ws_get_search_page_info_zipcode(
-                    survey,
-                    search_area_name,
-                    room_type,
-                    zipcode,
-                    guests,
-                    page_number,
-                    flag)
-                if room_count <= 0:
-                    break
-                if flag == FLAGS_PRINT:
-                    return
-    except Exception:
-        raise
 
 
 
