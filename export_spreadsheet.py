@@ -3,6 +3,14 @@ import psycopg2 as pg
 import pandas as pd
 import argparse
 import datetime as dt
+import logging
+
+LOG_LEVEL=logging.INFO
+# Set up logging
+LOG_FORMAT ='%(levelname)-8s%(message)s'
+logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
+START_DATE = '2015-07-24'
+
 
 _conn = None
 
@@ -24,7 +32,8 @@ def connect():
         logging.exception("Failed to connect to database")
 conn = connect()
 
-def get_spreadsheet(city, schema, format):
+def get_spreadsheet(city, project, format):
+    logging.info(" ---- Exporting spreadsheet for " + city)
     survey_ids = []
     survey_dates = []
     survey_comments = []
@@ -33,10 +42,11 @@ def get_spreadsheet(city, schema, format):
         from survey s, search_area sa
         where s.search_area_id = sa.search_area_id
         and sa.name = %s
+        and s.survey_date > %s
         order by survey_id
     """
     cur = _conn.cursor()
-    cur.execute(sql_survey_ids, (city, ))
+    cur.execute(sql_survey_ids, (city, START_DATE,))
     rs = cur.fetchall()
     for row in rs:
         survey_ids.append(row[0])
@@ -44,7 +54,17 @@ def get_spreadsheet(city, schema, format):
         survey_comments.append(row[2])
 
     #survey_ids = [11, ]
-    if schema == "unite":
+    if project == "unite":
+        sql_abbrev = """
+        select abbreviation 
+        from search_area
+        where name = %s
+        """
+        cur = _conn.cursor()
+        cur.execute(sql_abbrev, (city, ))
+        rs = cur.fetchall()
+        city_view = 'listing_' + rs[0][0]
+        cur.close()
         sql = """
         select room_id, host_id, room_type, 
         borough, neighborhood, 
@@ -53,11 +73,14 @@ def get_spreadsheet(city, schema, format):
         price, minstay,
         latitude, longitude,
         last_modified as collected
-        from unite.listing
+        from 
+        """
+        sql += city_view
+        sql += """
         where survey_id = %(survey_id)s
         order by room_id
         """
-    elif schema == "hvs":
+    elif project == "hvs":
         sql = """
         select room_id, host_id, room_type, 
         borough, neighborhood, 
@@ -85,29 +108,30 @@ def get_spreadsheet(city, schema, format):
 
     if format == "csv":
         for survey_id, survey_date, survey_comment in zip(survey_ids, survey_dates, survey_comments):
-            csvfile =  "./" + schema + "/Slee_" + schema + "_" + city + "_" + str(survey_id) + ".csv"
+            csvfile =  "./" + project + "/slee_" + project + "_" + city + "_" + str(survey_id) + ".csv"
             df = pd.read_sql(sql, conn, 
                     #index_col="room_id",
                     params={"survey_id": survey_id}
                     )
-            print ("To CSV on survey " + str(survey_id))
+            logging.info("To CSV on survey " + str(survey_id))
             df.to_csv(csvfile)
     else:
         today = dt.date.today().isoformat() 
         city_bar = city.replace (" ", "_")
-        xlsxfile =  "./" + schema + "/Slee_" + schema + "_" + city_bar + "_" + today + ".xlsx"
+        xlsxfile =  "./" + project + "/slee_" + project + "_" + city_bar + "_" + today + ".xlsx"
         writer = pd.ExcelWriter(xlsxfile, engine="xlsxwriter")
-        print ("Starting on " + xlsxfile)
+        logging.info ("Spreadsheet name: " + xlsxfile)
+        # read surveys
         for survey_id, survey_date, survey_comment in zip(survey_ids, survey_dates, survey_comments):
-            print ("Starting on survey " + str(survey_id) + " for city " + city)
+            logging.info("Survey " + str(survey_id) + " for " + city)
             df = pd.read_sql(sql, conn, 
                         #index_col="room_id",
                         params={"survey_id": survey_id}
                         )
             if len(df) > 0:
-                print ("To Excel on survey " + str(survey_id))
+                logging.info("Survey " + str(survey_id) + ": to Excel worksheet")
                 if survey_comment:
-                    # This comment feature is not currently working
+                    # This comment feature is not currently doing anything
                     options = {
                         'width': 256,
                         'height': 100,
@@ -121,8 +145,51 @@ def get_spreadsheet(city, schema, format):
                     }
                 df.to_excel(writer, sheet_name=str(survey_date))
             else:
-                print ("Survey " + str(survey_id) + " not in production schema: ignoring")
-        print ("Saving " + xlsxfile)
+                logging.info("Survey " + str(survey_id) + " not in production project: ignoring")
+
+        # neighborhood summaries
+        sql = "select to_char(survey_date, 'YYYY-MM-DD') as survey_date,"
+        sql += " neighborhood, count(*) as listings from"
+        sql += " " + city_view + " li,"
+        sql += " survey s"
+        sql += " where li.survey_id = s.survey_id"
+        sql += " and s.survey_date > %(start_date)s"
+        sql += " group by survey_date, neighborhood order by 3 desc"
+        try:
+            df = pd.read_sql(sql, conn, params={"start_date": START_DATE})
+            if len(df.index) > 0:
+                logging.info("Exporting listings for " + city)
+                dfnb = df.pivot(index='neighborhood', columns='survey_date', values='listings')
+                dfnb.fillna(0)
+                dfnb.to_excel(writer, sheet_name="Listings by neighborhood")
+        except pg.InternalError:
+            # Miami has no neighborhoods
+            pass
+        except pd.io.sql.DatabaseError:
+            # Miami has no neighborhoods
+            pass
+
+        # sql = "select to_char(survey_date, 'YYYY-MM-DD') as survey_date,"
+        # sql += " neighborhood, sum(reviews) as visits from"
+        # sql += " " + city_view + " li,"
+        # sql += " survey s"
+        # sql += " where li.survey_id = s.survey_id"
+        # sql += " and s.survey_date > %(start_date)s"
+        # sql += " group by survey_date, neighborhood order by 3  desc"
+        # try:
+            # df = pd.read_sql(sql, conn, params={"start_date": START_DATE})
+            # if len(df.index) > 0:
+                # logging.info("Exporting visits for " + city)
+                # dfnb = df.pivot(index='neighborhood', columns='survey_date', values='visits')
+                # dfnb.fillna(0)
+                # dfnb.to_excel(writer, sheet_name="Visits by neighborhood")
+        # except pg.InternalError:
+            # # Miami has no neighborhoods
+            # pass
+        # except pd.io.sql.DatabaseError:
+            # pass
+
+        logging.info("Saving " + xlsxfile)
         writer.save()
     
 def main():
@@ -132,16 +199,16 @@ def main():
     parser.add_argument('-c', '--city',
                        metavar='city', action='store', 
                        help="""set the city""")
-    parser.add_argument('-s', '--schema',
-                       metavar='schema', action='store', default="public",
-                       help="""the schema holding the listings table""")
+    parser.add_argument('-p', '--project',
+                       metavar='project', action='store', default="public",
+                       help="""the project determines the table or view""")
     parser.add_argument('-f', '--format',
                        metavar='format', action='store', default="xlsx",
                        help="""output format (xlsx or csv)""")
     args = parser.parse_args()
 
     if args.city:
-        get_spreadsheet(args.city, args.schema, args.format)
+        get_spreadsheet(args.city, args.project, args.format)
     else:
         parser.print_help()
 
