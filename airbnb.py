@@ -830,7 +830,7 @@ class Survey():
                         logger.exception("Error in searc:" + str(type(ex)))
                         raise
             else:
-                # add in  listings from previous surveys of this search area
+                # add in listings from previous surveys of this search area
                 try:
                     conn = connect()
                     sql_insert = """
@@ -925,7 +925,9 @@ class Survey():
 
     def __search_loop_zipcodes(self, zipcodes, room_type, flag):
         try:
+            i = 0
             for zipcode in zipcodes:
+                i += 1
                 self.__search_zipcode(str(zipcode), room_type, self.survey_id,
                     flag, self.search_area_name)
         except Exception:
@@ -1133,13 +1135,13 @@ def db_get_zipcodes_from_search_area(search_area_id):
     try:
         conn = connect()
         cur = conn.cursor()
+        # Query from the manually-prepared zipcode table
         cur.execute("""
-        select zip
-        from zipcode_us z, search_area sa
-        where search_area_id = %s
-        and sa.name = z.county
+        select zipcode
+        from zipcode z, search_area sa
+        where sa.search_area_id = %s
+        and z.search_area_id = sa.search_area_id
         """, (search_area_id,))
-        logger.info("X")
         zipcodes = []
         while True:
             row = cur.fetchone()
@@ -1367,7 +1369,7 @@ def ws_request_page(url, params=None):
     try:
         # wait
         sleep_time = REQUEST_SLEEP * random.random()
-        logging.info("-- sleeping " + str(sleep_time)[:7] + " seconds...")
+        logging.debug("-- sleeping " + str(sleep_time)[:7] + " seconds...")
         time.sleep(sleep_time) # be nice
 
         page = None
@@ -1380,7 +1382,7 @@ def ws_request_page(url, params=None):
         # If there is a list of proxies supplied, use it
         http_proxy = None
         if HTTP_PROXY_LIST is not None:
-            logging.info("---- Using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
+            logging.info("-- Using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
             http_proxy = random.choice(HTTP_PROXY_LIST)
             proxies = {
                 'http': http_proxy,
@@ -1441,7 +1443,7 @@ def ws_get_search_page_info_zipcode(survey, room_type,
                             zipcode, guests, page_number, flag):
     try:
         logger.info("-" * 70)
-        logger.info(room_type + ", " + str(zipcode) + ", " + 
+        logger.info(room_type + ", zipcode " + str(zipcode) + ", " + 
             str(guests) + " guests, " + "page " + str(page_number))
         (url, params) = search_page_url(zipcode, guests, 
             None, room_type, page_number)
@@ -1518,7 +1520,6 @@ def ws_get_search_page_info(survey, room_type,
                     listing = Listing(room_id, survey.survey_id, room_type)
                     if flag == FLAGS_ADD:
                         listing.save(FLAGS_INSERT_NO_REPLACE)
-                        #db_save_room_info(room_info, FLAGS_INSERT_NO_REPLACE)
                     elif flag == FLAGS_PRINT:
                         print(room_type, listing.room_id)
         else:
