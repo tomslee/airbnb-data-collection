@@ -852,14 +852,13 @@ class Survey():
                     cur.close()
                     conn.commit()
                 except psycopg2.IntegrityError as ie:
-                    logger.error("IntegrityError: rows already inserted? Continuing...")
                     conn.rollback()
+                    logger.error("IntegrityError: rows already inserted? Continuing...")
 
                 # Loop over neighborhoods or zipcode
                 if search_by == SEARCH_BY_ZIPCODE:
                     zipcodes = db_get_zipcodes_from_search_area(self.search_area_id)
-                    for room_type in ("Private room", "Entire home/apt",):
-                        logger.debug("Searching for %(rt)s by zipcode", {"rt": room_type})
+                    for room_type in ("Private room", "Entire home/apt", "Shared room",):
                         self.__search_loop_zipcodes(zipcodes, room_type, flag)
                 else:
                     neighborhoods = db_get_neighborhoods_from_search_area(self.search_area_id)
@@ -1246,12 +1245,15 @@ def db_get_room_to_fill():
         return listing
     except TypeError:
         logger.info("-- Finishing: no unfilled rooms in database --")
+        conn.rollback()
         conn = None
         return None
     except Exception:
         logger.error("Error retrieving room to fill from db")
+        conn.rollback()
         conn = None
-        raise
+        return None
+        
 
 
 def db_get_neighborhood_id(survey_id, neighborhood):
