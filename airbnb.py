@@ -121,7 +121,7 @@ def init():
         except Exception:
             logging.info("No http_proxy_list in " + username + ".config: not using proxies")
             HTTP_PROXY_LIST = None
-        MAX_CONNECTION_ATTEMPTS = int(config["NETWORK"]["max_CONNection_attempts"])
+        MAX_CONNECTION_ATTEMPTS = int(config["NETWORK"]["max_connection_attempts"])
         REQUEST_SLEEP = float(config["NETWORK"]["request_sleep"])
         HTTP_TIMEOUT = float(config["NETWORK"]["http_timeout"])
         # survey
@@ -1226,33 +1226,35 @@ def db_get_search_area_info_from_db(search_area):
 
 
 def db_get_room_to_fill():
-    try:
-        sql = """
-        select room_id, survey_id
-        from room
-        where price is null
-        and (deleted = 0 or deleted is null)
-        order by random()
-        limit 1
-        """
-        conn = connect()
-        cur = conn.cursor()
-        cur.execute(sql)
-        (room_id, survey_id) = cur.fetchone()
-        listing = Listing(room_id, survey_id)
-        cur.close()
-        conn.commit()
-        return listing
-    except TypeError:
-        logger.info("-- Finishing: no unfilled rooms in database --")
-        conn.rollback()
-        conn = None
-        return None
-    except Exception:
-        logger.error("Error retrieving room to fill from db")
-        conn.rollback()
-        conn = None
-        return None
+    for attempt in range(MAX_CONNECTION_ATTEMPTS):
+        try:
+            sql = """
+            select room_id, survey_id
+            from room
+            where price is null
+            and (deleted = 0 or deleted is null)
+            order by random()
+            limit 1
+            """
+            conn = connect()
+            cur = conn.cursor()
+            cur.execute(sql)
+            (room_id, survey_id) = cur.fetchone()
+            listing = Listing(room_id, survey_id)
+            cur.close()
+            conn.commit()
+            return listing
+        except TypeError:
+            logger.info("-- Finishing: no unfilled rooms in database --")
+            conn.rollback()
+            conn = None
+            return None
+        except Exception:
+            logger.error("Error retrieving room to fill from db")
+            conn.rollback()
+            conn = None
+        logger.warning("Database connection failed: attempt " + str(attempt))
+    return None
         
 
 
@@ -1413,10 +1415,10 @@ def ws_request_page(url, params=None):
     except KeyboardInterrupt:
         sys.exit()
     except requests.exceptions.ConnectionError as ce:
-        logger.error("Failed request: ConnectionError")
+        logger.error("Failed HTTP request: ConnectionError")
         return(-1, None)
     except requests.exceptions.ReadTimeout as rt:
-        logger.error("Failed request: ReadTimeout")
+        logger.error("Failed HTTP request: ReadTimeout")
         return(-1, None)
     except Exception as e:
         logger.exception("Exception type: " + type(e).__name__)
@@ -1528,7 +1530,7 @@ def ws_get_search_page_info(survey, room_type,
             logger.info("No rooms found")
         return room_count
     except UnicodeEncodeError:
-        logger.error("UnicodeEncodeError: you may want to  set PYTHONIOENCODING=utf-8")
+        logger.error("UnicodeEncodeError: you may want to set PYTHONIOENCODING=utf-8")
         #if sys.version_info >= (3,):
         #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
         #else:
