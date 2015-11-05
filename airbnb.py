@@ -72,7 +72,7 @@ SEARCH_BY_ZIPCODE = 1
 # 2.3 released Jan 12, 2015, to handle a web site update
 SCRIPT_VERSION_NUMBER = 2.5
 
-LOG_LEVEL=logging.DEBUG
+LOG_LEVEL=logging.INFO
 # Set up logging
 logger = logging.getLogger()
 logger.setLevel(LOG_LEVEL)
