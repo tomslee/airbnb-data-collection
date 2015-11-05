@@ -9,7 +9,8 @@ LOG_LEVEL=logging.INFO
 # Set up logging
 LOG_FORMAT ='%(levelname)-8s%(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
-START_DATE = '2015-07-24'
+START_DATE = '2010-07-24'
+# START_DATE = '2015-07-24'
 
 
 _conn = None
@@ -148,26 +149,27 @@ def get_spreadsheet(city, project, format):
                 logging.info("Survey " + str(survey_id) + " not in production project: ignoring")
 
         # neighborhood summaries
-        sql = "select to_char(survey_date, 'YYYY-MM-DD') as survey_date,"
-        sql += " neighborhood, count(*) as listings from"
-        sql += " " + city_view + " li,"
-        sql += " survey s"
-        sql += " where li.survey_id = s.survey_id"
-        sql += " and s.survey_date > %(start_date)s"
-        sql += " group by survey_date, neighborhood order by 3 desc"
-        try:
-            df = pd.read_sql(sql, conn, params={"start_date": START_DATE})
-            if len(df.index) > 0:
-                logging.info("Exporting listings for " + city)
-                dfnb = df.pivot(index='neighborhood', columns='survey_date', values='listings')
-                dfnb.fillna(0)
-                dfnb.to_excel(writer, sheet_name="Listings by neighborhood")
-        except pg.InternalError:
-            # Miami has no neighborhoods
-            pass
-        except pd.io.sql.DatabaseError:
-            # Miami has no neighborhoods
-            pass
+        if project=="unite":
+            sql = "select to_char(survey_date, 'YYYY-MM-DD') as survey_date,"
+            sql += " neighborhood, count(*) as listings from"
+            sql += " " + city_view + " li,"
+            sql += " survey s"
+            sql += " where li.survey_id = s.survey_id"
+            sql += " and s.survey_date > %(start_date)s"
+            sql += " group by survey_date, neighborhood order by 3 desc"
+            try:
+                df = pd.read_sql(sql, conn, params={"start_date": START_DATE})
+                if len(df.index) > 0:
+                    logging.info("Exporting listings for " + city)
+                    dfnb = df.pivot(index='neighborhood', columns='survey_date', values='listings')
+                    dfnb.fillna(0)
+                    dfnb.to_excel(writer, sheet_name="Listings by neighborhood")
+            except pg.InternalError:
+                # Miami has no neighborhoods
+                pass
+            except pd.io.sql.DatabaseError:
+                # Miami has no neighborhoods
+                pass
 
         # sql = "select to_char(survey_date, 'YYYY-MM-DD') as survey_date,"
         # sql += " neighborhood, sum(reviews) as visits from"

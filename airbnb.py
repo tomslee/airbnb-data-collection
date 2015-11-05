@@ -72,7 +72,7 @@ SEARCH_BY_ZIPCODE = 1
 # 2.3 released Jan 12, 2015, to handle a web site update
 SCRIPT_VERSION_NUMBER = 2.5
 
-LOG_LEVEL=logging.INFO
+LOG_LEVEL=logging.DEBUG
 # Set up logging
 logger = logging.getLogger()
 logger.setLevel(LOG_LEVEL)
@@ -138,16 +138,23 @@ def init():
 def connect():
     """ Return a connection to the database"""
     try:
-        global _CONN
-        if _CONN is None or _CONN.closed != 0:
-            _CONN = psycopg2.connect(
+        if not hasattr(connect, "conn"):
+            connect.conn = psycopg2.connect(
                 user=DB_USER,
                 password=DB_PASSWORD,
                 host=DB_HOST,
                 port=DB_PORT,
                 database=DB_NAME)
-            _CONN.set_client_encoding('UTF8')
-        return _CONN
+            connect.conn.set_client_encoding('UTF8')
+        elif connect.conn is None or connect.conn.closed != 0:
+            connect.conn = psycopg2.connect(
+                user=DB_USER,
+                password=DB_PASSWORD,
+                host=DB_HOST,
+                port=DB_PORT,
+                database=DB_NAME)
+            connect.conn.set_client_encoding('UTF8')
+        return connect.conn
     except psycopg2.OperationalError as pgoe:
         logger.error(pgoe.message)
         raise
@@ -258,13 +265,19 @@ class Listing():
                         self.__insert()
                     except psycopg2.IntegrityError:
                         logger.info("Room already exists " + str(self.room_id))
-        except psycopg2.DatabaseError:
+        except psycopg2.OperationalError as oe:
             # connection closed
+            del(connect.conn)
+            logger.error("Operational error (connection closed): set conn to None and resume")
+            del(connect.conn)
+        except psycopg2.DatabaseError:
+            conn.rollback()
             logger.error("Database error: set conn to None and resume")
+            del(connect.conn)
         except psycopg2.InterfaceError:
             # connection closed
             logger.error("Interface error: set conn to None and resume")
-            conn = None
+            del(connect.conn)
         except psycopg2.Error as pge:
             # database error: rollback operations and resume
             conn.rollback()
@@ -388,8 +401,8 @@ class Listing():
                 self.deleted, self.minstay, self.latitude, self.longitude, self.survey_id,
                 )
             cur.execute(sql, insert_args)
-            conn.commit()
             cur.close()
+            conn.commit()
             logger.info("Room " + str(self.room_id) + ": inserted")
         except psycopg2.IntegrityError:
             # logger.info("Room " + str(self.room_id) + ": insert failed")
@@ -419,19 +432,26 @@ class Listing():
                 where room_id = %s 
                 and survey_id = %s"""
             update_args = (
-                self.host_id,
-                self.room_type, self.country, self.city, self.neighborhood, self.address,
-                self.reviews, self.overall_satisfaction, self.accommodates, self.bedrooms,
-                self.bathrooms, self.price, self.deleted, self.minstay, self.latitude,
-                self.longitude, self.room_id, self.survey_id,
+                self.host_id, self.room_type, 
+                self.country, self.city, self.neighborhood, 
+                self.address, self.reviews, self.overall_satisfaction, 
+                self.accommodates, self.bedrooms, self.bathrooms,
+                self.price, self.deleted, 
+                self.minstay, self.latitude,
+                self.longitude,
+                self.room_id,
+                self.survey_id,
                 )
+            logger.debug("Executing...")
             cur.execute(sql, update_args)
             rowcount = cur.rowcount
-            conn.commit()
+            logger.debug("Closing...")
             cur.close()
+            conn.commit()
             logger.info("Room " + str(self.room_id) + ": updated (" + str(rowcount) + ")")
             return rowcount
         except:
+            logger.warning("Exception in __update: raising")
             raise
 
     def __get_country(self, tree):
@@ -611,7 +631,7 @@ class Listing():
             if self.reviews is not None:
                 self.reviews = int(self.reviews)
         except:
-            raise
+            self.reviews = None
 
     def __get_accommodates(self, tree):
         try:
@@ -641,8 +661,9 @@ class Listing():
             if self.accommodates:
                 self.accommodates = self.accommodates.split('+')[0]
                 self.accommodates = self.accommodates.split(' ')[0]
+            self.accommodates = int(self.accommodates)
         except:
-            raise
+            self.accommodates = None
 
     def __get_bedrooms(self, tree):
         try:
@@ -664,8 +685,9 @@ class Listing():
             if self.bedrooms:
                 self.bedrooms = self.bedrooms.split('+')[0]
                 self.bedrooms = self.bedrooms.split(' ')[0]
+            self.bedrooms = int(self.bedrooms)
         except:
-            raise
+            self.bedrooms = None
 
     def __get_bathrooms(self, tree):
         try:
@@ -687,8 +709,9 @@ class Listing():
             if self.bathrooms:
                 self.bathrooms = self.bathrooms.split('+')[0]
                 self.bathrooms = self.bathrooms.split(' ')[0]
+            self.bathrooms = int(self.bathrooms)
         except:
-            raise
+            self.bathrooms = None
 
     def __get_minstay(self, tree):
         try:
@@ -717,8 +740,9 @@ class Listing():
             if self.minstay is not None:
                 self.minstay = self.minstay.split('+')[0]
                 self.minstay = self.minstay.split(' ')[0]
+            self.minstay = int(self.minstay)
         except:
-            raise
+            self.minstay = None
 
     def __get_price(self, tree):
         try:
@@ -739,8 +763,9 @@ class Listing():
             per_month = tree.xpath("//div[@class='js-per-night book-it__payment-period  hide']")
             if per_month:
                 self.price = int(int(self.price) / 30)
+            self.price = int(self.price)
         except:
-            raise
+            self.price = None
 
     def __get_room_info_from_tree(self, tree, flag):
         try:
@@ -815,7 +840,7 @@ class Survey():
                 room_count = 0
                 while room_count < FILL_MAX_ROOM_COUNT:
                     try:
-                        # get a randome candidate room_id
+                        # get a random candidate room_id
                         room_id = random.randint(0, ROOM_ID_UPPER_BOUND)
                         listing = Listing(room_id, self.survey_id)
                         if room_id is None:
@@ -831,6 +856,7 @@ class Survey():
                         raise
             else:
                 # add in listings from previous surveys of this search area
+                # (that were active in the last six months)
                 try:
                     conn = connect()
                     sql_insert = """
@@ -1247,12 +1273,12 @@ def db_get_room_to_fill():
         except TypeError:
             logger.info("-- Finishing: no unfilled rooms in database --")
             conn.rollback()
-            conn = None
+            del (connect.conn)
             return None
         except Exception:
             logger.error("Error retrieving room to fill from db")
             conn.rollback()
-            conn = None
+            del (connect.conn)
         logger.warning("Database connection failed: attempt " + str(attempt))
     return None
         
@@ -1385,7 +1411,7 @@ def ws_request_page(url, params=None):
   
         # If there is a list of proxies supplied, use it
         http_proxy = None
-        if HTTP_PROXY_LIST is not None:
+        if len(HTTP_PROXY_LIST) > 0:
             logging.info("-- Using " + str(len(HTTP_PROXY_LIST)) + " proxies.")
             http_proxy = random.choice(HTTP_PROXY_LIST)
             proxies = {
