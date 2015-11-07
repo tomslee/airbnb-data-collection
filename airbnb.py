@@ -1427,7 +1427,7 @@ def ws_request_page(url, params=None):
             page = response.text
         elif response.status_code == 503:
             logger.warning("503 error for proxy " + http_proxy)
-            if random.random() < 0.5:
+            if random.choice([True, False]):
                 if http_proxy is None or len(HTTP_PROXY_LIST) < 1:
                     # fill the proxy list again, and wait a long time, then restart
                     logging.error("No proxies left in the list. Re-initializing.")
@@ -1439,12 +1439,34 @@ def ws_request_page(url, params=None):
                     HTTP_PROXY_LIST.remove(http_proxy)
         return(response.status_code, page)
     except KeyboardInterrupt:
+        logger.error("Cancelled by user")
         sys.exit()
     except requests.exceptions.ConnectionError as ce:
-        logger.error("Failed HTTP request: ConnectionError")
+        # For requests error and exceptions, see
+        # http://docs.python-requests.org/en/latest/user/quickstart/#errors-and-exceptions
+        logger.error("Network problem: ConnectionError")
+        if random.choice([True, False]):
+            if http_proxy is None or len(HTTP_PROXY_LIST) < 1:
+                # fill the proxy list again, and wait a long time, then restart
+                logging.error("No proxies left in the list. Re-initializing.")
+                time.sleep(RE_INIT_SLEEP_TIME) # be nice
+                init()
+            else:
+                # remove the proxy from the proxy list
+                logger.warning("Removing " + http_proxy + " from proxy list.")
+                HTTP_PROXY_LIST.remove(http_proxy)
         return(-1, None)
-    except requests.exceptions.ReadTimeout as rt:
-        logger.error("Failed HTTP request: ReadTimeout")
+    except requests.exceptions.HTTPError as he:
+        logger.error("Invalid HTTP response: HTTPError")
+        return(-1, None)
+    except requests.exceptions.Timeout as to:
+        logger.error("Request timed out: Timeout")
+        return(-1, None)
+    except requests.exceptions.TooManyRedirects as tmr:
+        logger.error("Too many redirects: TooManyRedirects")
+        return(-1, None)
+    except requests.exceptions.RequestException as re:
+        logger.error("Unidentified Requests error: RequestException")
         return(-1, None)
     except Exception as e:
         logger.exception("Exception type: " + type(e).__name__)
