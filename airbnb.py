@@ -184,7 +184,7 @@ class Listing():
         self.bedrooms = None
         self.bathrooms = None
         self.price = None  
-        self.deleted = 0
+        self.deleted = None
         self.minstay = None
         self.latitude = None
         self.longitude = None
@@ -195,23 +195,22 @@ class Listing():
     def status_check(self):
         status = True # OK
         unassigned_values = {key:value 
-        for key, value in vars(self).items() 
-        if not key.startswith('__') 
-        and not callable(key)
-        and value is None}
+            for key, value in vars(self).items() 
+            if not key.startswith('__') 
+            and not callable(key)
+            and value is None
+            }
         if len(unassigned_values) > 6: #just a value indicating deleted
-            logger.info("Room " + str(self.room_id) + ": marked deleted.")
+            logger.info("Room " + str(self.room_id) + ": marked deleted")
             status = False # probably deleted
             self.deleted = 1
         else:
+            self.deleted = 0
             for key, val in unassigned_values.items():
                 if key=="overall_satisfaction" and "reviews" not in unassigned_values: 
                     if val is None and self.reviews > 2:
-                   
                        logger.warning("Room " + str(self.room_id) + ": No value for " + key)
-               
                 elif val is None:
-                
                    logger.warning("Room " + str(self.room_id) + ": No value for " + key)
         return status
 
@@ -264,7 +263,7 @@ class Listing():
                     try:
                         self.__insert()
                     except psycopg2.IntegrityError:
-                        logger.info("Room already exists " + str(self.room_id))
+                        logger.info("Room " + str(self.room_id) + ": already exists")
         except psycopg2.OperationalError as oe:
             # connection closed
             del(connect.conn)
@@ -852,7 +851,7 @@ class Survey():
                         logger.error("Attribute error: marking room as deleted.")
                         listing.save_as_deleted()
                     except Exception as ex:
-                        logger.exception("Error in searc:" + str(type(ex)))
+                        logger.exception("Error in search:" + str(type(ex)))
                         raise
             else:
                 # add in listings from previous surveys of this search area
