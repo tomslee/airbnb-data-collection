@@ -205,7 +205,6 @@ class Listing():
             status = False # probably deleted
             self.deleted = 1
         else:
-            self.deleted = 0
             for key, val in unassigned_values.items():
                 if key=="overall_satisfaction" and "reviews" not in unassigned_values: 
                     if val is None and self.reviews > 2:
@@ -790,6 +789,7 @@ class Listing():
             self.__get_bathrooms(tree)
             self.__get_minstay(tree)
             self.__get_price(tree)
+            self.deleted = 0
 
             self.status_check()
 
