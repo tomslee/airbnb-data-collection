@@ -120,7 +120,7 @@ def init():
             HTTP_PROXY_LIST = config["NETWORK"]["proxy_list"].split(",")
         except Exception:
             logging.info("No http_proxy_list in " + username + ".config: not using proxies")
-            HTTP_PROXY_LIST = None
+            HTTP_PROXY_LIST = []
         MAX_CONNECTION_ATTEMPTS = int(config["NETWORK"]["max_connection_attempts"])
         REQUEST_SLEEP = float(config["NETWORK"]["request_sleep"])
         HTTP_TIMEOUT = float(config["NETWORK"]["http_timeout"])
@@ -1417,25 +1417,26 @@ def ws_request_page(url, params=None):
                 'http': http_proxy,
                 'https': http_proxy,
             }
+            logging.info("Requesting page through proxy " + http_proxy)
         else:
             proxies = None
         # Now make the request
-        logger.debug("Requesting page through proxy " + http_proxy)
         response = requests.get(url, params, timeout=timeout, headers=headers, proxies=proxies)
         if response.status_code == requests.codes.ok: # success
             page = response.text
         elif response.status_code == 503:
-            logger.warning("503 error for proxy " + http_proxy)
+            if http_proxy:
+                logger.warning("503 error for proxy " + http_proxy)
+            else:
+                logger.warning("503 error (no proxy)")
             if random.choice([True, False]):
-                if http_proxy is None or len(HTTP_PROXY_LIST) < 1:
+                logger.warning("Removing " + http_proxy + " from proxy list.")
+                HTTP_PROXY_LIST.remove(http_proxy)
+                if len(HTTP_PROXY_LIST) < 1:
                     # fill the proxy list again, and wait a long time, then restart
                     logging.error("No proxies left in the list. Re-initializing.")
                     time.sleep(RE_INIT_SLEEP_TIME) # be nice
                     init()
-                else:
-                    # remove the proxy from the proxy list
-                    logger.warning("Removing " + http_proxy + " from proxy list.")
-                    HTTP_PROXY_LIST.remove(http_proxy)
         return(response.status_code, page)
     except KeyboardInterrupt:
         logger.error("Cancelled by user")
@@ -1602,6 +1603,9 @@ def fill_loop_by_room():
     room_count = 0
     while room_count < FILL_MAX_ROOM_COUNT:
         try:
+            if len(HTTP_PROXY_LIST) == 0:
+                logger.info("No proxies left: quitting")
+                break
             room_count += 1
             listing = db_get_room_to_fill()
             if listing is None:
