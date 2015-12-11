@@ -50,6 +50,7 @@ FILL_MAX_ROOM_COUNT = None
 ROOM_ID_UPPER_BOUND = None  # max(room_id) = 5,548,539 at start
 SEARCH_MAX_PAGES = None
 SEARCH_MAX_GUESTS = None
+RE_INIT_SLEEP_TIME = 0.0 # seconds
 
 # URLs (fixed)
 URL_ROOT = "http://www.airbnb.com/"
@@ -63,7 +64,6 @@ FLAGS_ADD = 1
 FLAGS_PRINT = 9
 FLAGS_INSERT_REPLACE = True
 FLAGS_INSERT_NO_REPLACE = False
-RE_INIT_SLEEP_TIME = 1800 # seconds
 SEARCH_BY_NEIGHBORHOOD = 0 # default
 SEARCH_BY_ZIPCODE = 1
 
@@ -125,11 +125,13 @@ def init():
         REQUEST_SLEEP = float(config["NETWORK"]["request_sleep"])
         HTTP_TIMEOUT = float(config["NETWORK"]["http_timeout"])
         # survey
-        global FILL_MAX_ROOM_COUNT, ROOM_ID_UPPER_BOUND, SEARCH_MAX_PAGES, SEARCH_MAX_GUESTS
+        global FILL_MAX_ROOM_COUNT, ROOM_ID_UPPER_BOUND, SEARCH_MAX_PAGES
+        global SEARCH_MAX_GUESTS, RE_INIT_SLEEP_TIME
         FILL_MAX_ROOM_COUNT = int(config["SURVEY"]["fill_max_room_count"])
         ROOM_ID_UPPER_BOUND = int(config["SURVEY"]["room_id_upper_bound"])
         SEARCH_MAX_PAGES = int(config["SURVEY"]["search_max_pages"])
         SEARCH_MAX_GUESTS = int(config["SURVEY"]["search_max_guests"])
+        RE_INIT_SLEEP_TIME = float(config["SURVEY"]["re_init_sleep_time"])
     except Exception:
         logger.exception("Failed to read config file properly")
         raise
@@ -1221,8 +1223,7 @@ def db_get_search_area_info_from_db(search_area):
         cur.execute("""select name
                        from city
                        where search_area_id = :search_area_id
-                    """,
-                    {"search_area_id": search_area_id})
+                    """, {"search_area_id": search_area_id})
         cities = []
         while True:
             row = cur.fetchone()
@@ -1234,7 +1235,7 @@ def db_get_search_area_info_from_db(search_area):
         cur.execute("""
             select name
             from neighborhood
-            where search_area_id =  :search_area_id
+            where search_area_id = :search_area_id
             """, {"search_area_id": search_area_id})
         neighborhoods = []
         while True:
@@ -1250,20 +1251,30 @@ def db_get_search_area_info_from_db(search_area):
         raise
 
 
-def db_get_room_to_fill():
+def db_get_room_to_fill(survey_id):
     for attempt in range(MAX_CONNECTION_ATTEMPTS):
         try:
-            sql = """
-            select room_id, survey_id
-            from room
-            where price is null
-            and (deleted = 0 or deleted is null)
-            order by random()
-            limit 1
-            """
             conn = connect()
             cur = conn.cursor()
-            cur.execute(sql)
+            if survey_id==0: # no survey specified
+                sql = """
+                    select room_id, survey_id
+                    from room
+                    where deleted is null
+                    order by random()
+                    limit 1
+                    """
+                cur.execute(sql)
+            else:
+                sql = """
+                    select room_id, survey_id
+                    from room
+                    where deleted is null
+                    and survey_id = %s
+                    order by random()
+                    limit 1
+                    """
+                cur.execute(sql, (survey_id,))
             (room_id, survey_id) = cur.fetchone()
             listing = Listing(room_id, survey_id)
             cur.close()
@@ -1275,10 +1286,9 @@ def db_get_room_to_fill():
             del (connect.conn)
             return None
         except Exception:
-            logger.error("Error retrieving room to fill from db")
+            logger.exception("Error retrieving room to fill from db")
             conn.rollback()
             del (connect.conn)
-        logger.warning("Database connection failed: attempt " + str(attempt))
     return None
         
 
@@ -1596,7 +1606,7 @@ def display_host(host_id):
     webbrowser.open(URL_HOST_ROOT + str(host_id))
 
 
-def fill_loop_by_room():
+def fill_loop_by_room(survey_id):
     """
     Master routine for looping over rooms (after a search) to fill in the properties.
     """
@@ -1604,10 +1614,12 @@ def fill_loop_by_room():
     while room_count < FILL_MAX_ROOM_COUNT:
         try:
             if len(HTTP_PROXY_LIST) == 0:
-                logger.info("No proxies left: quitting")
-                break
+                logger.info(
+                "No proxies left: re-initialize after {0} seconds".format(RE_INIT_SLEEP_TIME))
+                time.sleep(RE_INIT_SLEEP_TIME) # be nice
+                init()
             room_count += 1
-            listing = db_get_room_to_fill()
+            listing = db_get_room_to_fill(survey_id)
             if listing is None:
                 return None
             else:
@@ -1708,9 +1720,6 @@ def main():
                        metavar='search_area', type=str,
                        help="""add a survey entry to the database,
                        for search_area""")
-    group.add_argument('-dbi', '--dbinit',
-                       action='store_true', default=False,
-                       help='Initialize the database file')
     group.add_argument('-dbp', '--dbping',
                        action='store_true', default=False,
                        help='Test the database connection')
@@ -1720,9 +1729,9 @@ def main():
     group.add_argument('-dr', '--displayroom',
                        metavar='room_id', type=int,
                        help='display web page for room_id in browser')
-    group.add_argument('-f', '--fill',
-                       action='store_true', default=False,
-                       help='fill in details for room_ids collected with -s')
+    group.add_argument('-f', '--fill', nargs='?',
+                       metavar='survey_id', type=int, const=0,
+                       help='fill in details for room_ids previously collected with -s')
     group.add_argument('-lsa', '--listsearcharea',
                        metavar='search_area', type=str,
                        help="""list information about this search area
@@ -1757,7 +1766,7 @@ def main():
                        help='search for rooms using survey survey_id, by zipcode')
     group.add_argument('-v', '--version',
                        action='version',
-                       version='%(prog)s, version SCRIPT_VERSION_NUMBER')
+                       version='%(prog)s, version ' + str(SCRIPT_VERSION_NUMBER))
     group.add_argument('-?', action='help')
 
     args = parser.parse_args()
@@ -1769,14 +1778,12 @@ def main():
         elif args.search_by_zipcode:
             survey = Survey(args.search_by_zipcode)
             survey.search(FLAGS_ADD, SEARCH_BY_ZIPCODE)
-        elif args.fill:
-            fill_loop_by_room()
+        elif args.fill is not None:
+            fill_loop_by_room(args.fill)
         elif args.addsearcharea:
             ws_get_city_info(args.addsearcharea, FLAGS_ADD)
         elif args.addsurvey:
             db_add_survey(args.addsurvey)
-        elif args.dbinit:
-            db_init()
         elif args.dbping:
             db_ping()
         elif args.displayhost:
