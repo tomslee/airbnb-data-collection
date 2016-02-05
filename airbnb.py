@@ -362,7 +362,8 @@ class Listing():
             logger.info("Room " + str(self.room_id)
                         + ": getting from Airbnb web site")
             room_url = URL_ROOM_ROOT + str(self.room_id)
-            page = ws_get_page(room_url)
+            response = ws_get_response(room_url)
+            page = response.text
             if page is not None:
                 tree = html.fromstring(page)
                 self.__get_room_info_from_tree(tree, flag)
@@ -970,7 +971,6 @@ class Survey():
                 logger.info("Searching for %(g)i guests", {"g": guests})
                 for page_number in range(1, SEARCH_MAX_PAGES):
                     if flag != FLAGS_PRINT:
-                        # for FLAGS_PRINT, fetch one page and print it
                         # this efficiency check can be implemented later
                         count = page_has_been_retrieved(
                             survey_id, room_type,
@@ -990,10 +990,11 @@ class Survey():
                         guests,
                         page_number,
                         flag)
+                    if flag == FLAGS_PRINT:
+                        # for FLAGS_PRINT, fetch one page and print it
+                        sys.exit(0)
                     if room_count <= 0:
                         break
-                    if flag == FLAGS_PRINT:
-                        return
         except Exception:
             raise
 
@@ -1015,7 +1016,6 @@ class Survey():
                 logger.debug("Searching for %(g)i guests", {"g": guests})
                 for page_number in range(1, SEARCH_MAX_PAGES):
                     if flag != FLAGS_PRINT:
-                        # for FLAGS_PRINT, fetch one page and print it
                         count = page_has_been_retrieved(
                             self.survey_id, room_type,
                             neighborhood, guests, page_number, SEARCH_BY_NEIGHBORHOOD)
@@ -1027,15 +1027,71 @@ class Survey():
                             break
                         else:
                             pass
-                    room_count = ws_get_search_page_info(
-                        self, room_type, neighborhood, guests, page_number, flag)
+                    room_count = self.__get_rooms_from_search_page(
+                        room_type, neighborhood, guests, page_number, flag)
+                    if flag == FLAGS_PRINT:
+                        # for FLAGS_PRINT, fetch one page and print it
+                        sys.exit(0)
                     if room_count <= 0:
                         break
-                    if flag == FLAGS_PRINT:
-                        return
         except Exception:
             raise
     
+    def __get_rooms_from_search_page(
+                        self, room_type, neighborhood, guests, page_number,
+                        flag):
+        try:
+            logger.info("-" * 70)
+            logger.info(
+                "Survey " + str(self.survey_id)  + " (" + 
+                self.search_area_name + "): " +
+                room_type + ", " +
+                str(neighborhood) + ", " +
+                str(guests) + " guests, " + 
+                "page " + str(page_number))
+
+            url = "http://www.airbnb.com/search/search_results"
+            params = {}
+            params["page"] = str(page_number)
+            params["source"] = "filter"
+            params["location"]=self.search_area_name
+            params["room_types[]"] = room_type
+            params["neighborhoods[]"] = neighborhood
+            response = ws_get_response(url, params)
+            room_elements = response.json()["property_ids"]
+            logger.debug("Found " + str(len(room_elements)) + " rooms.")
+
+            room_count = len(room_elements)
+            if room_count > 0:
+                has_rooms = 1
+            else:
+                has_rooms = 0
+            if flag == FLAGS_ADD:
+                neighborhood_id = db_get_neighborhood_id(self.survey_id, neighborhood)
+                self.log_progress(room_type, neighborhood_id, guests, page_number, has_rooms)
+            if room_count > 0:
+                logger.info("Found " + str(room_count) + " rooms")
+                for room_element in room_elements:
+                    room_id = int(room_element)
+                    if room_id is not None:
+                        listing = Listing(room_id, self.survey_id, room_type)
+                        if flag == FLAGS_ADD:
+                            listing.save(FLAGS_INSERT_NO_REPLACE)
+                        elif flag == FLAGS_PRINT:
+                            print(room_type, listing.room_id)
+            else:
+                logger.info("No rooms found")
+            return room_count
+        except UnicodeEncodeError:
+            logger.error("UnicodeEncodeError: you may want to set PYTHONIOENCODING=utf-8")
+            #if sys.version_info >= (3,):
+            #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
+            #else:
+            #    logger.info(s.encode('utf8'))
+            # unhandled at the moment
+        except Exception:
+            raise
+
 # ==============================================================================
 # End of class Survey
 # ==============================================================================
@@ -1321,7 +1377,7 @@ def db_get_neighborhood_id(survey_id, neighborhood):
 def ws_get_city_info(city, flag):
     try:
         url = URL_SEARCH_ROOT + city
-        page = ws_get_page(url)
+        page = ws_get_response(url)
         if page is None:
             return False
         tree = html.fromstring(page)
@@ -1401,9 +1457,28 @@ def ws_airbnb_is_live():
         return False        # URL don't seem to be alive
 
 
-def ws_request_page(url, params=None):
+def ws_get_response(url, params=None):
+    # Return None on failure
+    for attempt in range(MAX_CONNECTION_ATTEMPTS):
+        try:
+            response = ws_request(url, params)
+            if response.status_code == requests.codes.ok:
+                return response
+            else:
+                logger.warning("Request failure " + str(attempt + 1) + ": trying again")
+        except AttributeError as ae:
+            logger.exception("AttributeError retrieving page")
+        except Exception as ex:
+            logger.error("Failed to retrieve web page " + url)
+            logger.exception("Exception retrieving page: " + str(type(ex)))
+            # logger.error("Exception type: " + type(e).__name__)
+            # Failed
+    return None
+
+
+def ws_request(url, params=None):
     """
-    Individual request for a web page: return a success code and a page
+    Individual web request: returns a response object
     """
     try:
         # wait
@@ -1411,11 +1486,7 @@ def ws_request_page(url, params=None):
         logging.debug("-- sleeping " + str(sleep_time)[:7] + " seconds...")
         time.sleep(sleep_time) # be nice
 
-        page = None
-
-        #headers
         headers = {'User-Agent': 'Mozilla/5.0'}
-        # timeout
         timeout = HTTP_TIMEOUT 
   
         # If there is a list of proxies supplied, use it
@@ -1432,9 +1503,7 @@ def ws_request_page(url, params=None):
             proxies = None
         # Now make the request
         response = requests.get(url, params, timeout=timeout, headers=headers, proxies=proxies)
-        if response.status_code == requests.codes.ok: # success
-            page = response.text
-        elif response.status_code == 503:
+        if response.status_code == 503:
             if http_proxy:
                 logger.warning("503 error for proxy " + http_proxy)
             else:
@@ -1447,7 +1516,7 @@ def ws_request_page(url, params=None):
                     logging.error("No proxies left in the list. Re-initializing.")
                     time.sleep(RE_INIT_SLEEP_TIME) # be nice
                     init()
-        return(response.status_code, page)
+        return(response)
     except KeyboardInterrupt:
         logger.error("Cancelled by user")
         sys.exit()
@@ -1482,24 +1551,6 @@ def ws_request_page(url, params=None):
         logger.exception("Exception type: " + type(e).__name__)
         return(-1, None)
 
-def ws_get_page(url, params=None):
-    # Return None on failure
-    for attempt in range(MAX_CONNECTION_ATTEMPTS):
-        try:
-            (retcode, page) = ws_request_page(url, params)
-            if retcode == requests.codes.ok:
-                return page
-            else:
-                logger.warning("Request failure " + str(attempt + 1) + ": trying again")
-        except AttributeError as ae:
-            logger.exception("AttributeError retrieving page")
-        except Exception as ex:
-            logger.error("Failed to retrieve web page " + url)
-            logger.exception("Exception retrieving page: " + str(type(ex)))
-            # logger.error("Exception type: " + type(e).__name__)
-            # Failed
-    return None
-
 
 def ws_get_search_page_info_zipcode(survey, room_type,
                             zipcode, guests, page_number, flag):
@@ -1509,7 +1560,8 @@ def ws_get_search_page_info_zipcode(survey, room_type,
             str(guests) + " guests, " + "page " + str(page_number))
         (url, params) = search_page_url(zipcode, guests, 
             None, room_type, page_number)
-        page = ws_get_page(url, params)
+        response = ws_get_response(url, params)
+        page = response.text
         if page is None:
             return 0
         tree = html.fromstring(page)
@@ -1545,56 +1597,6 @@ def ws_get_search_page_info_zipcode(survey, room_type,
         # unhandled at the moment
     except Exception as e:
         logger.error("Exception type: " + type(e).__name__)
-        raise
-
-def ws_get_search_page_info(survey, room_type,
-                    neighborhood, guests, page_number, flag):
-    try:
-        logger.info("-" * 70)
-        logger.info(
-            room_type + ", " +
-            str(neighborhood) + ", " +
-            str(guests) + " guests, " + 
-            "page " + str(page_number))
-        (url, params) = search_page_url(survey.search_area_name, guests,
-            neighborhood, room_type, page_number)
-        page = ws_get_page(url, params)
-        if page is None:
-            return 0
-        tree = html.fromstring(page)
-        room_elements = tree.xpath(
-            "//div[@class='listing']/@data-id"
-        )
-        logger.debug("Found " + str(len(room_elements)) + " rooms.")
-        room_count = len(room_elements)
-        if room_count > 0:
-            has_rooms = 1
-        else:
-            has_rooms = 0
-        if flag == FLAGS_ADD:
-            neighborhood_id = db_get_neighborhood_id(survey.survey_id, neighborhood)
-            survey.log_progress(room_type, neighborhood_id, guests, page_number, has_rooms)
-        if room_count > 0:
-            logger.info("Found " + str(room_count) + " rooms")
-            for room_element in room_elements:
-                room_id = int(room_element)
-                if room_id is not None:
-                    listing = Listing(room_id, survey.survey_id, room_type)
-                    if flag == FLAGS_ADD:
-                        listing.save(FLAGS_INSERT_NO_REPLACE)
-                    elif flag == FLAGS_PRINT:
-                        print(room_type, listing.room_id)
-        else:
-            logger.info("No rooms found")
-        return room_count
-    except UnicodeEncodeError:
-        logger.error("UnicodeEncodeError: you may want to set PYTHONIOENCODING=utf-8")
-        #if sys.version_info >= (3,):
-        #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
-        #else:
-        #    logger.info(s.encode('utf8'))
-        # unhandled at the moment
-    except Exception:
         raise
 
 

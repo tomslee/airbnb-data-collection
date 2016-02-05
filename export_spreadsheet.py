@@ -33,8 +33,8 @@ def connect():
         logging.exception("Failed to connect to database")
 conn = connect()
 
-def get_spreadsheet(city, project, format):
-    logging.info(" ---- Exporting spreadsheet for " + city)
+def export_city_data(city, project, format):
+    logging.info(" ---- Exporting data for " + city)
     survey_ids = []
     survey_dates = []
     survey_comments = []
@@ -44,6 +44,7 @@ def get_spreadsheet(city, project, format):
         where s.search_area_id = sa.search_area_id
         and sa.name = %s
         and s.survey_date > %s
+        and s.status = 1
         order by survey_id
     """
     cur = _conn.cursor()
@@ -107,18 +108,18 @@ def get_spreadsheet(city, project, format):
         order by room_id
         """
 
+    city_bar = city.replace (" ", "_").lower()
     if format == "csv":
         for survey_id, survey_date, survey_comment in zip(survey_ids, survey_dates, survey_comments):
-            csvfile =  "./" + project + "/slee_" + project + "_" + city + "_" + str(survey_id) + ".csv"
+            csvfile =  "./" + project + "/slee_" + project + "_" + city_bar + "_" + str(survey_id) + ".csv"
             df = pd.read_sql(sql, conn, 
                     #index_col="room_id",
                     params={"survey_id": survey_id}
                     )
-            logging.info("To CSV on survey " + str(survey_id))
+            logging.info("CSV export: survey " + str(survey_id) + " to " + csvfile)
             df.to_csv(csvfile)
     else:
         today = dt.date.today().isoformat() 
-        city_bar = city.replace (" ", "_")
         xlsxfile =  "./" + project + "/slee_" + project + "_" + city_bar + "_" + today + ".xlsx"
         writer = pd.ExcelWriter(xlsxfile, engine="xlsxwriter")
         logging.info ("Spreadsheet name: " + xlsxfile)
@@ -171,25 +172,25 @@ def get_spreadsheet(city, project, format):
                 # Miami has no neighborhoods
                 pass
 
-        # sql = "select to_char(survey_date, 'YYYY-MM-DD') as survey_date,"
-        # sql += " neighborhood, sum(reviews) as visits from"
-        # sql += " " + city_view + " li,"
-        # sql += " survey s"
-        # sql += " where li.survey_id = s.survey_id"
-        # sql += " and s.survey_date > %(start_date)s"
-        # sql += " group by survey_date, neighborhood order by 3  desc"
-        # try:
-            # df = pd.read_sql(sql, conn, params={"start_date": START_DATE})
-            # if len(df.index) > 0:
-                # logging.info("Exporting visits for " + city)
-                # dfnb = df.pivot(index='neighborhood', columns='survey_date', values='visits')
-                # dfnb.fillna(0)
-                # dfnb.to_excel(writer, sheet_name="Visits by neighborhood")
-        # except pg.InternalError:
-            # # Miami has no neighborhoods
-            # pass
-        # except pd.io.sql.DatabaseError:
-            # pass
+        sql = "select to_char(survey_date, 'YYYY-MM-DD') as survey_date,"
+        sql += " neighborhood, sum(reviews) as visits from"
+        sql += " " + city_view + " li,"
+        sql += " survey s"
+        sql += " where li.survey_id = s.survey_id"
+        sql += " and s.survey_date > %(start_date)s"
+        sql += " group by survey_date, neighborhood order by 3  desc"
+        try:
+            df = pd.read_sql(sql, conn, params={"start_date": START_DATE})
+            if len(df.index) > 0:
+                logging.info("Exporting visits for " + city)
+                dfnb = df.pivot(index='neighborhood', columns='survey_date', values='visits')
+                dfnb.fillna(0)
+                dfnb.to_excel(writer, sheet_name="Visits by neighborhood")
+        except pg.InternalError:
+            # Miami has no neighborhoods
+            pass
+        except pd.io.sql.DatabaseError:
+            pass
 
         logging.info("Saving " + xlsxfile)
         writer.save()
@@ -210,7 +211,7 @@ def main():
     args = parser.parse_args()
 
     if args.city:
-        get_spreadsheet(args.city, args.project, args.format)
+        export_city_data(args.city, args.project.lower(), args.format)
     else:
         parser.print_help()
 
