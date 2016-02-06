@@ -1377,10 +1377,10 @@ def db_get_neighborhood_id(survey_id, neighborhood):
 def ws_get_city_info(city, flag):
     try:
         url = URL_SEARCH_ROOT + city
-        page = ws_get_response(url)
-        if page is None:
+        response = ws_get_response(url)
+        if response is None:
             return False
-        tree = html.fromstring(page)
+        tree = html.fromstring(response.text)
         try:
             citylist = tree.xpath(
                 "//input[@name='location']/@value")
@@ -1462,10 +1462,10 @@ def ws_get_response(url, params=None):
     for attempt in range(MAX_CONNECTION_ATTEMPTS):
         try:
             response = ws_request(url, params)
-            if response.status_code == requests.codes.ok:
-                return response
-            else:
+            if response is None:
                 logger.warning("Request failure " + str(attempt + 1) + ": trying again")
+            elif response.status_code == requests.codes.ok:
+                return response
         except AttributeError as ae:
             logger.exception("AttributeError retrieving page")
         except Exception as ex:
@@ -1516,7 +1516,7 @@ def ws_request(url, params=None):
                     logging.error("No proxies left in the list. Re-initializing.")
                     time.sleep(RE_INIT_SLEEP_TIME) # be nice
                     init()
-        return(response)
+        return response
     except KeyboardInterrupt:
         logger.error("Cancelled by user")
         sys.exit()
@@ -1534,22 +1534,22 @@ def ws_request(url, params=None):
                 # remove the proxy from the proxy list
                 logger.warning("Removing " + http_proxy + " from proxy list.")
                 HTTP_PROXY_LIST.remove(http_proxy)
-        return(-1, None)
+        return None
     except requests.exceptions.HTTPError as he:
         logger.error("Invalid HTTP response: HTTPError")
-        return(-1, None)
+        return None
     except requests.exceptions.Timeout as to:
         logger.error("Request timed out: Timeout")
-        return(-1, None)
+        return None
     except requests.exceptions.TooManyRedirects as tmr:
         logger.error("Too many redirects: TooManyRedirects")
-        return(-1, None)
+        return None
     except requests.exceptions.RequestException as re:
         logger.error("Unidentified Requests error: RequestException")
-        return(-1, None)
+        return None
     except Exception as e:
         logger.exception("Exception type: " + type(e).__name__)
-        return(-1, None)
+        return None
 
 
 def ws_get_search_page_info_zipcode(survey, room_type,
