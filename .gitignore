@@ -8,9 +8,12 @@
 *.zip
 *.pyc
 *.bat
+temp.*
 googlemaps.py
 !example.config
 /backup/*
+/geojson/*
+/insideairbnb/*
 /doc/*
 /html_source/*
 /hvs/*
