@@ -14,6 +14,7 @@ googlemaps.py
 /backup/*
 /geojson/*
 /insideairbnb/*
+/report_data/*
 /doc/*
 /html_source/*
 /hvs/*

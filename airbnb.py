@@ -1261,52 +1261,6 @@ def db_get_neighborhoods_from_search_area(search_area_id):
         raise
 
 
-def db_get_search_area_info_from_db(search_area):
-    try:
-        # get city_id
-        conn = connect()
-        cur = conn.cursor()
-        cur.execute("""
-            select search_area_id
-            from search_area
-            where name = :search_area_name
-            """, {"search_area_name": search_area})
-        search_area_id = cur.fetchone()[0]
-        print("\nFound search_area", search_area,
-              ": search_area_id =", str(search_area_id))
-
-        # get cities
-        cur.execute("""select name
-                       from city
-                       where search_area_id = :search_area_id
-                    """, {"search_area_id": search_area_id})
-        cities = []
-        while True:
-            row = cur.fetchone()
-            if row is None:
-                break
-            cities.append(row[0])
-
-        # get neighborhoods
-        cur.execute("""
-            select name
-            from neighborhood
-            where search_area_id = :search_area_id
-            """, {"search_area_id": search_area_id})
-        neighborhoods = []
-        while True:
-            row = cur.fetchone()
-            if row is None:
-                break
-            neighborhoods.append(row[0])
-
-        cur.close()
-        return (cities, neighborhoods)
-    except Exception:
-        logger.error("Error getting search area info from db")
-        raise
-
-
 def db_get_room_to_fill(survey_id):
     for attempt in range(MAX_CONNECTION_ATTEMPTS):
         try:

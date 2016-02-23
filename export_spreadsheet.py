@@ -108,10 +108,11 @@ def export_city_data(city, project, format):
         order by room_id
         """
 
-    city_bar = city.replace (" ", "_").lower()
+    city_bar = city.replace(" ", "_").lower()
     if format == "csv":
         for survey_id, survey_date, survey_comment in zip(survey_ids, survey_dates, survey_comments):
-            csvfile =  "./" + project + "/slee_" + project + "_" + city_bar + "_" + str(survey_id) + ".csv"
+            csvfile =  "./" + project + "/ts_" + city_bar + "_" + str(survey_date) + ".csv"
+            csvfile = csvfile.lower()
             df = pd.read_sql(sql, conn, 
                     #index_col="room_id",
                     params={"survey_id": survey_id}
