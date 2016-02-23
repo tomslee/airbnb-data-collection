@@ -14,7 +14,7 @@ Using the script
 You must be comfortable messing about with databases and python to use this.
 
 The airbnb.py script works with a PostgreSQL database. The schema is in the two
-files postgresql/schema.ddl and postgresql/functions.sql. You need to run those
+files postgresql/schema.sql and postgresql/functions.sql. You need to run those
 to create the database to start with.
 
 To run it you will need to use python 3.4 and install the modules listed at the
@@ -48,10 +48,11 @@ This can take a long time (hours). Like many sites, Airbnb turns away requests
 waiting regularly. If you have to stop in the middle, that's OK -- running it
 again picks up where it left off (after a bit of a pause).
 
-The search collects room_id values from the Airbnb search pages for a city. The next step is to visit each room page and get the details.
+The search collects room_id values from the Airbnb search pages for a city. The
+next step is to visit each room page and get the details.
 
 To fill in the room details:
-  : python airbnb.py -f
+  : python airbnb.py -f survey_od
 
 Again, this can take a long time (days for big cities) because of the need to
 pause between requests. But again, if you have to cancel in the middle it's not
