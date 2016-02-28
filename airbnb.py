@@ -42,6 +42,7 @@ DB_PASSWORD = None
 # Network management: filled in from <username>.config
 HTTP_TIMEOUT = None
 HTTP_PROXY_LIST = []
+USER_AGENT_LIST = []
 MAX_CONNECTION_ATTEMPTS = None
 REQUEST_SLEEP = None
 
@@ -115,9 +116,17 @@ def init():
         DB_USER = config["DATABASE"]["db_user"]
         DB_PASSWORD = config["DATABASE"]["db_password"]
         # network
-        global HTTP_PROXY_LIST, MAX_CONNECTION_ATTEMPTS, REQUEST_SLEEP, HTTP_TIMEOUT
+        global USER_AGENT_LIST, HTTP_PROXY_LIST, MAX_CONNECTION_ATTEMPTS, REQUEST_SLEEP, HTTP_TIMEOUT
         try:
             HTTP_PROXY_LIST = config["NETWORK"]["proxy_list"].split(",")
+            HTTP_PROXY_LIST = [x.strip() for x in HTTP_PROXY_LIST]
+        except Exception:
+            logging.info("No http_proxy_list in " + username + ".config: not using proxies")
+            HTTP_PROXY_LIST = []
+        try:
+            USER_AGENT_LIST = config["NETWORK"]["user_agent_list"].split(",,")
+            USER_AGENT_LIST = [x.strip() for x in USER_AGENT_LIST]
+            USER_AGENT_LIST = [x.strip('"') for x in USER_AGENT_LIST]
         except Exception:
             logging.info("No http_proxy_list in " + username + ".config: not using proxies")
             HTTP_PROXY_LIST = []
@@ -363,11 +372,13 @@ class Listing():
                         + ": getting from Airbnb web site")
             room_url = URL_ROOM_ROOT + str(self.room_id)
             response = ws_get_response(room_url)
-            page = response.text
-            if page is not None:
+            if response is not None:
+                page = response.text
                 tree = html.fromstring(page)
                 self.__get_room_info_from_tree(tree, flag)
                 return True
+            else:
+                return False
         except BrokenPipeError as bpe:
             raise
         except KeyboardInterrupt:
@@ -1440,8 +1451,15 @@ def ws_request(url, params=None):
         logging.debug("-- sleeping " + str(sleep_time)[:7] + " seconds...")
         time.sleep(sleep_time) # be nice
 
-        headers = {'User-Agent': 'Mozilla/5.0'}
         timeout = HTTP_TIMEOUT 
+
+        # If a list of user agent strings is supplied, use it
+        if len(USER_AGENT_LIST) > 0:
+            user_agent = random.choice(USER_AGENT_LIST)
+            logging.info("-- User agent: " + user_agent)
+            headers = {"User-Agent": user_agent}
+        else:
+            headers = {'User-Agent': 'Mozilla/5.0'}
   
         # If there is a list of proxies supplied, use it
         http_proxy = None
