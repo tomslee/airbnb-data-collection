@@ -4,7 +4,7 @@
 
 -- Dumped from database version 9.4.1
 -- Dumped by pg_dump version 9.4.4
--- Started on 2016-03-25 10:22:39
+-- Started on 2016-03-25 13:54:01
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -45,12 +45,33 @@ CREATE SEQUENCE city_city_id_seq
 
 
 --
--- TOC entry 4633 (class 0 OID 0)
+-- TOC entry 4637 (class 0 OID 0)
 -- Dependencies: 191
 -- Name: city_city_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE city_city_id_seq OWNED BY city.city_id;
+
+
+--
+-- TOC entry 190 (class 1259 OID 18009)
+-- Name: search_area; Type: TABLE; Schema: public; Owner: -; Tablespace: 
+--
+
+CREATE TABLE search_area (
+    search_area_id integer NOT NULL,
+    name character varying(255) DEFAULT 'UNKNOWN'::character varying,
+    abbreviation character varying(10)
+);
+
+
+--
+-- TOC entry 4639 (class 0 OID 0)
+-- Dependencies: 190
+-- Name: COLUMN search_area.abbreviation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN search_area.abbreviation IS 'Short form for city: used in views, in particular.';
 
 
 --
@@ -70,7 +91,7 @@ CREATE TABLE survey (
 
 
 --
--- TOC entry 4635 (class 0 OID 0)
+-- TOC entry 4641 (class 0 OID 0)
 -- Dependencies: 196
 -- Name: TABLE survey; Type: COMMENT; Schema: public; Owner: -
 --
@@ -79,7 +100,7 @@ COMMENT ON TABLE survey IS 'Each collection of rooms for a given city (search ar
 
 
 --
--- TOC entry 4636 (class 0 OID 0)
+-- TOC entry 4642 (class 0 OID 0)
 -- Dependencies: 196
 -- Name: COLUMN survey.survey_method; Type: COMMENT; Schema: public; Owner: -
 --
@@ -117,7 +138,7 @@ CREATE TABLE room (
 
 
 --
--- TOC entry 4638 (class 0 OID 0)
+-- TOC entry 4644 (class 0 OID 0)
 -- Dependencies: 188
 -- Name: TABLE room; Type: COMMENT; Schema: public; Owner: -
 --
@@ -151,12 +172,34 @@ CREATE SEQUENCE neighborhood_neighborhood_id_seq
 
 
 --
--- TOC entry 4641 (class 0 OID 0)
+-- TOC entry 4647 (class 0 OID 0)
 -- Dependencies: 193
 -- Name: neighborhood_neighborhood_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE neighborhood_neighborhood_id_seq OWNED BY neighborhood.neighborhood_id;
+
+
+--
+-- TOC entry 189 (class 1259 OID 18007)
+-- Name: search_area_search_area_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE search_area_search_area_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- TOC entry 4649 (class 0 OID 0)
+-- Dependencies: 189
+-- Name: search_area_search_area_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE search_area_search_area_id_seq OWNED BY search_area.search_area_id;
 
 
 --
@@ -176,7 +219,7 @@ CREATE TABLE survey_progress_log (
 
 
 --
--- TOC entry 4643 (class 0 OID 0)
+-- TOC entry 4651 (class 0 OID 0)
 -- Dependencies: 198
 -- Name: TABLE survey_progress_log; Type: COMMENT; Schema: public; Owner: -
 --
@@ -198,7 +241,7 @@ CREATE SEQUENCE survey_search_page_page_id_seq
 
 
 --
--- TOC entry 4645 (class 0 OID 0)
+-- TOC entry 4653 (class 0 OID 0)
 -- Dependencies: 197
 -- Name: survey_search_page_page_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -220,7 +263,7 @@ CREATE SEQUENCE survey_survey_id_seq
 
 
 --
--- TOC entry 4647 (class 0 OID 0)
+-- TOC entry 4655 (class 0 OID 0)
 -- Dependencies: 195
 -- Name: survey_survey_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
@@ -240,7 +283,7 @@ CREATE TABLE zipcode (
 
 
 --
--- TOC entry 4449 (class 2604 OID 18021)
+-- TOC entry 4451 (class 2604 OID 18021)
 -- Name: city_id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -248,7 +291,7 @@ ALTER TABLE ONLY city ALTER COLUMN city_id SET DEFAULT nextval('city_city_id_seq
 
 
 --
--- TOC entry 4450 (class 2604 OID 18029)
+-- TOC entry 4452 (class 2604 OID 18029)
 -- Name: neighborhood_id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -256,7 +299,15 @@ ALTER TABLE ONLY neighborhood ALTER COLUMN neighborhood_id SET DEFAULT nextval('
 
 
 --
--- TOC entry 4451 (class 2604 OID 18037)
+-- TOC entry 4449 (class 2604 OID 18012)
+-- Name: search_area_id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY search_area ALTER COLUMN search_area_id SET DEFAULT nextval('search_area_search_area_id_seq'::regclass);
+
+
+--
+-- TOC entry 4453 (class 2604 OID 18037)
 -- Name: survey_id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -264,7 +315,7 @@ ALTER TABLE ONLY survey ALTER COLUMN survey_id SET DEFAULT nextval('survey_surve
 
 
 --
--- TOC entry 4454 (class 2604 OID 18046)
+-- TOC entry 4456 (class 2604 OID 18046)
 -- Name: page_id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -272,7 +323,7 @@ ALTER TABLE ONLY survey_progress_log ALTER COLUMN page_id SET DEFAULT nextval('s
 
 
 --
--- TOC entry 4459 (class 2606 OID 18023)
+-- TOC entry 4463 (class 2606 OID 18023)
 -- Name: city_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
@@ -281,7 +332,7 @@ ALTER TABLE ONLY city
 
 
 --
--- TOC entry 4461 (class 2606 OID 18031)
+-- TOC entry 4465 (class 2606 OID 18031)
 -- Name: neighborhood_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
@@ -290,7 +341,7 @@ ALTER TABLE ONLY neighborhood
 
 
 --
--- TOC entry 4457 (class 2606 OID 18006)
+-- TOC entry 4459 (class 2606 OID 18006)
 -- Name: room_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
@@ -299,7 +350,16 @@ ALTER TABLE ONLY room
 
 
 --
--- TOC entry 4463 (class 2606 OID 18040)
+-- TOC entry 4461 (class 2606 OID 18015)
+-- Name: search_area_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
+--
+
+ALTER TABLE ONLY search_area
+    ADD CONSTRAINT search_area_pkey PRIMARY KEY (search_area_id);
+
+
+--
+-- TOC entry 4467 (class 2606 OID 18040)
 -- Name: survey_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
@@ -308,7 +368,7 @@ ALTER TABLE ONLY survey
 
 
 --
--- TOC entry 4465 (class 2606 OID 18048)
+-- TOC entry 4469 (class 2606 OID 18048)
 -- Name: survey_search_page_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
@@ -317,7 +377,7 @@ ALTER TABLE ONLY survey_progress_log
 
 
 --
--- TOC entry 4467 (class 2606 OID 20576)
+-- TOC entry 4471 (class 2606 OID 20576)
 -- Name: z; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
@@ -326,15 +386,40 @@ ALTER TABLE ONLY zipcode
 
 
 --
--- TOC entry 4455 (class 1259 OID 22687)
+-- TOC entry 4457 (class 1259 OID 22687)
 -- Name: ix_survey; Type: INDEX; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE INDEX ix_survey ON room USING btree (survey_id);
 
 
+
 --
 -- TOC entry 4469 (class 2620 OID 18116)
+-- Name: trg_location; Type: TRIGGER; Schema: public; Owner: -
+--
+-- Manual export of trigger
+CREATE OR REPLACE FUNCTION trg_location()
+  RETURNS trigger AS
+$BODY$
+BEGIN
+  NEW.location := st_setsrid(
+	st_makepoint(NEW.longitude, NEW.latitude), 
+	4326
+	);
+	RETURN NEW;
+ END
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+ALTER FUNCTION trg_location()
+  OWNER TO postgres;
+GRANT EXECUTE ON FUNCTION trg_location() TO public;
+GRANT EXECUTE ON FUNCTION trg_location() TO postgres;
+
+
+--
+-- TOC entry 4473 (class 2620 OID 18116)
 -- Name: trg_location; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -342,7 +427,7 @@ CREATE TRIGGER trg_location BEFORE INSERT OR UPDATE OF latitude, longitude ON ro
 
 
 --
--- TOC entry 4468 (class 2606 OID 20577)
+-- TOC entry 4472 (class 2606 OID 20577)
 -- Name: zipcode_search_area_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -351,7 +436,7 @@ ALTER TABLE ONLY zipcode
 
 
 --
--- TOC entry 4632 (class 0 OID 0)
+-- TOC entry 4636 (class 0 OID 0)
 -- Dependencies: 192
 -- Name: city; Type: ACL; Schema: public; Owner: -
 --
@@ -359,12 +444,10 @@ ALTER TABLE ONLY zipcode
 REVOKE ALL ON TABLE city FROM PUBLIC;
 REVOKE ALL ON TABLE city FROM postgres;
 GRANT ALL ON TABLE city TO postgres;
-GRANT SELECT ON TABLE city TO reader;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE city TO editor;
 
 
 --
--- TOC entry 4634 (class 0 OID 0)
+-- TOC entry 4638 (class 0 OID 0)
 -- Dependencies: 191
 -- Name: city_city_id_seq; Type: ACL; Schema: public; Owner: -
 --
@@ -372,11 +455,21 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE city TO editor;
 REVOKE ALL ON SEQUENCE city_city_id_seq FROM PUBLIC;
 REVOKE ALL ON SEQUENCE city_city_id_seq FROM postgres;
 GRANT ALL ON SEQUENCE city_city_id_seq TO postgres;
-GRANT SELECT,USAGE ON SEQUENCE city_city_id_seq TO editor;
 
 
 --
--- TOC entry 4637 (class 0 OID 0)
+-- TOC entry 4640 (class 0 OID 0)
+-- Dependencies: 190
+-- Name: search_area; Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON TABLE search_area FROM PUBLIC;
+REVOKE ALL ON TABLE search_area FROM postgres;
+GRANT ALL ON TABLE search_area TO postgres;
+
+
+--
+-- TOC entry 4643 (class 0 OID 0)
 -- Dependencies: 196
 -- Name: survey; Type: ACL; Schema: public; Owner: -
 --
@@ -384,12 +477,10 @@ GRANT SELECT,USAGE ON SEQUENCE city_city_id_seq TO editor;
 REVOKE ALL ON TABLE survey FROM PUBLIC;
 REVOKE ALL ON TABLE survey FROM postgres;
 GRANT ALL ON TABLE survey TO postgres;
-GRANT SELECT ON TABLE survey TO reader;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE survey TO editor;
 
 
 --
--- TOC entry 4639 (class 0 OID 0)
+-- TOC entry 4645 (class 0 OID 0)
 -- Dependencies: 188
 -- Name: room; Type: ACL; Schema: public; Owner: -
 --
@@ -397,12 +488,10 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE survey TO editor;
 REVOKE ALL ON TABLE room FROM PUBLIC;
 REVOKE ALL ON TABLE room FROM postgres;
 GRANT ALL ON TABLE room TO postgres;
-GRANT SELECT ON TABLE room TO reader;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE room TO editor;
 
 
 --
--- TOC entry 4640 (class 0 OID 0)
+-- TOC entry 4646 (class 0 OID 0)
 -- Dependencies: 194
 -- Name: neighborhood; Type: ACL; Schema: public; Owner: -
 --
@@ -410,12 +499,10 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE room TO editor;
 REVOKE ALL ON TABLE neighborhood FROM PUBLIC;
 REVOKE ALL ON TABLE neighborhood FROM postgres;
 GRANT ALL ON TABLE neighborhood TO postgres;
-GRANT SELECT ON TABLE neighborhood TO reader;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE neighborhood TO editor;
 
 
 --
--- TOC entry 4642 (class 0 OID 0)
+-- TOC entry 4648 (class 0 OID 0)
 -- Dependencies: 193
 -- Name: neighborhood_neighborhood_id_seq; Type: ACL; Schema: public; Owner: -
 --
@@ -423,11 +510,21 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE neighborhood TO editor;
 REVOKE ALL ON SEQUENCE neighborhood_neighborhood_id_seq FROM PUBLIC;
 REVOKE ALL ON SEQUENCE neighborhood_neighborhood_id_seq FROM postgres;
 GRANT ALL ON SEQUENCE neighborhood_neighborhood_id_seq TO postgres;
-GRANT SELECT,USAGE ON SEQUENCE neighborhood_neighborhood_id_seq TO editor;
 
 
 --
--- TOC entry 4644 (class 0 OID 0)
+-- TOC entry 4650 (class 0 OID 0)
+-- Dependencies: 189
+-- Name: search_area_search_area_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON SEQUENCE search_area_search_area_id_seq FROM PUBLIC;
+REVOKE ALL ON SEQUENCE search_area_search_area_id_seq FROM postgres;
+GRANT ALL ON SEQUENCE search_area_search_area_id_seq TO postgres;
+
+
+--
+-- TOC entry 4652 (class 0 OID 0)
 -- Dependencies: 198
 -- Name: survey_progress_log; Type: ACL; Schema: public; Owner: -
 --
@@ -435,12 +532,10 @@ GRANT SELECT,USAGE ON SEQUENCE neighborhood_neighborhood_id_seq TO editor;
 REVOKE ALL ON TABLE survey_progress_log FROM PUBLIC;
 REVOKE ALL ON TABLE survey_progress_log FROM postgres;
 GRANT ALL ON TABLE survey_progress_log TO postgres;
-GRANT SELECT ON TABLE survey_progress_log TO reader;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE survey_progress_log TO editor;
 
 
 --
--- TOC entry 4646 (class 0 OID 0)
+-- TOC entry 4654 (class 0 OID 0)
 -- Dependencies: 197
 -- Name: survey_search_page_page_id_seq; Type: ACL; Schema: public; Owner: -
 --
@@ -448,11 +543,10 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE survey_progress_log TO editor;
 REVOKE ALL ON SEQUENCE survey_search_page_page_id_seq FROM PUBLIC;
 REVOKE ALL ON SEQUENCE survey_search_page_page_id_seq FROM postgres;
 GRANT ALL ON SEQUENCE survey_search_page_page_id_seq TO postgres;
-GRANT SELECT,USAGE ON SEQUENCE survey_search_page_page_id_seq TO editor;
 
 
 --
--- TOC entry 4648 (class 0 OID 0)
+-- TOC entry 4656 (class 0 OID 0)
 -- Dependencies: 195
 -- Name: survey_survey_id_seq; Type: ACL; Schema: public; Owner: -
 --
@@ -460,11 +554,10 @@ GRANT SELECT,USAGE ON SEQUENCE survey_search_page_page_id_seq TO editor;
 REVOKE ALL ON SEQUENCE survey_survey_id_seq FROM PUBLIC;
 REVOKE ALL ON SEQUENCE survey_survey_id_seq FROM postgres;
 GRANT ALL ON SEQUENCE survey_survey_id_seq TO postgres;
-GRANT SELECT,USAGE ON SEQUENCE survey_survey_id_seq TO editor;
 
 
 --
--- TOC entry 4649 (class 0 OID 0)
+-- TOC entry 4657 (class 0 OID 0)
 -- Dependencies: 286
 -- Name: zipcode; Type: ACL; Schema: public; Owner: -
 --
@@ -472,12 +565,9 @@ GRANT SELECT,USAGE ON SEQUENCE survey_survey_id_seq TO editor;
 REVOKE ALL ON TABLE zipcode FROM PUBLIC;
 REVOKE ALL ON TABLE zipcode FROM postgres;
 GRANT ALL ON TABLE zipcode TO postgres;
-GRANT ALL ON TABLE zipcode TO rds_superuser;
-GRANT SELECT ON TABLE zipcode TO reader;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE zipcode TO editor;
 
 
--- Completed on 2016-03-25 10:22:45
+-- Completed on 2016-03-25 13:54:09
 
 --
 -- PostgreSQL database dump complete
