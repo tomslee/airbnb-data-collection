@@ -13,6 +13,7 @@ googlemaps.py
 !example.config
 /backup/*
 /geojson/*
+/gis/*
 /insideairbnb/*
 /report_data/*
 /doc/*
