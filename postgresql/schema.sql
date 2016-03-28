@@ -58,12 +58,19 @@ ALTER SEQUENCE city_city_id_seq OWNED BY city.city_id;
 -- Name: search_area; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
-CREATE TABLE search_area (
-    search_area_id integer NOT NULL,
-    name character varying(255) DEFAULT 'UNKNOWN'::character varying,
-    abbreviation character varying(10)
+CREATE TABLE search_area
+(
+  search_area_id serial NOT NULL,
+  name character varying(255) DEFAULT 'UNKNOWN'::character varying,
+  abbreviation character varying(10),
+  bb_n_lat double precision,
+  bb_e_lng double precision,
+  bb_s_lat double precision,
+  bb_w_lng double precision,
+  CONSTRAINT search_area_pkey PRIMARY KEY (search_area_id)
+) WITH (
+  OIDS=FALSE
 );
-
 
 --
 -- TOC entry 4639 (class 0 OID 0)
@@ -79,18 +86,22 @@ COMMENT ON COLUMN search_area.abbreviation IS 'Short form for city: used in view
 -- Name: survey; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
-CREATE TABLE survey (
-    survey_id integer NOT NULL,
-    survey_date date DEFAULT ('now'::text)::date,
-    survey_description character varying(255),
-    search_area_id integer,
-    comment character varying(255),
-    survey_method character varying(20) DEFAULT 'neighborhood'::character varying,
-    status smallint
+CREATE TABLE survey
+(
+  survey_id serial NOT NULL,
+  survey_date date DEFAULT ('now'::text)::date,
+  survey_description character varying(255),
+  search_area_id integer,
+  comment character varying(255),
+  survey_method character varying(20) DEFAULT 'neighborhood'::character varying, -- neighborhood or zipcode
+  status smallint,
+  CONSTRAINT survey_pkey PRIMARY KEY (survey_id)
+)
+WITH (
+  OIDS=FALSE
 );
 
 
---
 -- TOC entry 4641 (class 0 OID 0)
 -- Dependencies: 196
 -- Name: TABLE survey; Type: COMMENT; Schema: public; Owner: -
