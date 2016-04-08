@@ -52,6 +52,8 @@ ROOM_ID_UPPER_BOUND = None  # max(room_id) = 5,548,539 at start
 SEARCH_MAX_PAGES = None
 SEARCH_MAX_GUESTS = None
 SEARCH_MAX_RECTANGLE_ZOOM = None
+SEARCH_RECTANGLE_TRUNCATE_CRITERION = 1000
+SEARCH_RECTANGLE_EDGE_BLUR = 0.0
 SEARCH_BY_NEIGHBORHOOD = 0  # default
 SEARCH_BY_ZIPCODE = 1
 SEARCH_BY_BOUNDING_BOX = 2
@@ -78,6 +80,7 @@ FLAGS_INSERT_NO_REPLACE = False
 # 2.3 released Jan 12, 2015, to handle a web site update
 SCRIPT_VERSION_NUMBER = 2.6
 
+# LOG_LEVEL = logging.DEBUG
 LOG_LEVEL = logging.INFO
 # Set up logging
 logger = logging.getLogger()
@@ -97,9 +100,6 @@ filelog_handler = logging.FileHandler("run.log", encoding="utf-8")
 filelog_handler.setLevel(LOG_LEVEL)
 filelog_handler.setFormatter(fl_formatter)
 logger.addHandler(filelog_handler)
-
-# global database connection
-_CONN = None
 
 
 def init():
@@ -886,6 +886,10 @@ class Survey():
         self.__set_search_area()
 
     def search(self, flag, search_by):
+        logger.info("-" * 70)
+        logger.info("Survey {survey_id}, for {search_area_name}".format(
+            survey_id=self.survey_id, search_area_name=self.search_area_name
+        ))
         if self.search_area_name == SEARCH_AREA_GLOBAL:
             # "Special case": global search
             room_count = 0
@@ -939,7 +943,7 @@ class Survey():
 
             # Call the specific search function
             if search_by == SEARCH_BY_BOUNDING_BOX:
-                logging.info("Searching by bounding box")
+                logger.info("Searching by bounding box")
                 self.__search_loop_bounding_box(flag)
                 pass
             elif search_by == SEARCH_BY_ZIPCODE:
@@ -952,7 +956,7 @@ class Survey():
                         "Shared room",):
                     self.__search_loop_zipcodes(zipcodes, room_type, flag)
             else:
-                logging.info("Searching by neighborhood")
+                logger.info("Searching by neighborhood")
                 neighborhoods = db_get_neighborhoods_from_search_area(
                     self.search_area_id)
                 # for some cities (eg Havana) the neighbourhood information
@@ -1071,12 +1075,11 @@ class Survey():
                            rectangle_zoom, flag):
         new_rooms = ws_search_rectangle(self, room_type, guests,
                                         rectangle, rectangle_zoom, flag)
-        logger.info(("{room_type} ({g} guests): "
-                     "zoom level {rect_zoom}: "
-                     "{new_rooms} new rooms.")
-                    .format(room_type=room_type, g=str(guests),
-                            rect_zoom=str(rectangle_zoom),
-                            new_rooms=str(new_rooms)))
+        logger.info(("{room_type} ({g} guests): zoom level {rect_zoom}: "
+                     "{new_rooms} new rooms.").format(
+                         room_type=room_type, g=str(guests),
+                         rect_zoom=str(rectangle_zoom),
+                         new_rooms=str(new_rooms)))
         if new_rooms > 0 and rectangle_zoom < SEARCH_MAX_RECTANGLE_ZOOM:
             # break the rectangle into quadrants
             # (n_lat, e_lng, s_lat, w_lng).
@@ -1084,16 +1087,26 @@ class Survey():
             mid_lat = (n_lat + s_lat)/2.0
             mid_lng = (e_lng + w_lng)/2.0
             rectangle_zoom += 1
-            quadrant = (n_lat, e_lng, mid_lat, mid_lng)
+            # overlap quadrants to ensure coverage at high zoom levels
+            # Airbnb max zoom (18) is about 0.004 on a side.
+            blur = SEARCH_RECTANGLE_EDGE_BLUR
+            quadrant = (n_lat + blur, e_lng - blur,
+                        mid_lat - blur, mid_lng + blur)
+            logging.debug("Quadrant size: {lat} by {lng}".format(
+                lat=str(quadrant[0] - quadrant[2]),
+                lng=str(abs(quadrant[1] - quadrant[3]))))
             new_rooms = self.__search_rectangle(room_type, guests,
                                                 quadrant, rectangle_zoom, flag)
-            quadrant = (n_lat, mid_lng, mid_lat, w_lng)
+            quadrant = (n_lat + blur, mid_lng - blur,
+                        mid_lat - blur, w_lng + blur)
             new_rooms = self.__search_rectangle(room_type, guests,
                                                 quadrant, rectangle_zoom, flag)
-            quadrant = (mid_lat, e_lng, s_lat, mid_lng)
+            quadrant = (mid_lat + blur, e_lng - blur,
+                        s_lat - blur, mid_lng + blur)
             new_rooms = self.__search_rectangle(room_type, guests,
                                                 quadrant, rectangle_zoom, flag)
-            quadrant = (mid_lat, mid_lng, s_lat, w_lng)
+            quadrant = (mid_lat + blur, mid_lng - blur,
+                        s_lat - blur, w_lng + blur)
             new_rooms = self.__search_rectangle(room_type, guests,
                                                 quadrant, rectangle_zoom, flag)
 
@@ -1681,10 +1694,15 @@ def ws_search_rectangle(survey, room_type, guests,
     """
     try:
         logger.info("-" * 70)
-        logger.info("Searching '" + room_type +
-                    "' (" + str(guests) + " guests), zoom level " +
-                    str(rectangle_zoom))
+        logger.info(("Searching '{room_type}' ({guests} guests), "
+                     "zoom level {zoom}").format(room_type=room_type,
+                                                 guests=str(guests),
+                                                 zoom=str(rectangle_zoom)))
         new_rooms = 0
+        if rectangle_zoom >= (SEARCH_MAX_RECTANGLE_ZOOM - 1):
+            truncate_criterion = 999999
+        else:
+            truncate_criterion = SEARCH_RECTANGLE_TRUNCATE_CRITERION
         for page_number in range(1, SEARCH_MAX_PAGES):
             logger.info("Page " + str(page_number) + "...")
             params = {}
@@ -1715,6 +1733,11 @@ def ws_search_rectangle(survey, room_type, guests,
                 sys.exit(0)
             if room_count < SEARCH_LISTINGS_ON_FULL_PAGE:
                 logger.debug("Final page of listings for this search")
+                break
+            if new_rooms >= truncate_criterion:
+                logger.info(("Found {new_rooms} new rooms. "
+                             "Truncating search and zooming in").format(
+                             new_rooms=str(new_rooms)))
                 break
         return new_rooms
     except UnicodeEncodeError:

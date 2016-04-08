@@ -1,13 +1,12 @@
-m Airbnb web site scraper
-=======================
+# Airbnb web site scraper
 
-Disclaimers
------------
+## Disclaimers
 
-The script scrapes the Airbnb web site to collect data about the shape of the company's business. No guarantees are made about the quality of data obtained using this script, statistically or about an individual page. So please check your results. Airbnb is increasingly making it difficult to scrape significant amounts of data from the site. I have to run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services. If you would rather not make the attempt yourself, I will be happy to run collections for you when time allows. 
+The script scrapes the Airbnb web site to collect data about the shape of the company's business. No guarantees are made about the quality of data obtained using this script, statistically or about an individual page. So please check your results.
 
-Using the script
-----------------
+Airbnb is increasingly making it difficult to scrape significant amounts of data from the site. I now have to run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services. If you would rather not make the attempt yourself, I will be happy to run collections for you when time allows.
+
+## Using the script
 
 You must be comfortable messing about with databases and python to use this.
 
@@ -49,8 +48,7 @@ To fill in the room details:
 
 Again, this can take a long time (days for big cities). But again, if you have to cancel in the middle it's not a big deal; just run the command again to pick up.
 
-Alternative search methods
---------------------------
+## Alternative search methods
 
 The default search method (-s) loops over room_type, number of guests, and neighborhoods, looping over a number of pages for each combination until no more listings are found. This method has been found to identify almost all listings in most cities.
 
@@ -63,8 +61,7 @@ For some cities and for other regions of interest, looping over neighborhoods do
 
 Ideally I'd like to automate this process. I am still experimenting with a combination of search_max_pages and search_max_rectangle_zoom that picks up all the listings in a reasonably efficient manner.
 
-Results
--------
+# Results
 
 The basic data is in the table "room". A complete search of a given city's listings is a "survey" and the surveys are tracked in table *survey*. If you want to see all the listings for a given survey, you can query the stored procedure survey_room (survey_id) from a tool such as PostgreSQL psql.
 
