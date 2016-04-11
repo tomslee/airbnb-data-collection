@@ -522,11 +522,16 @@ class Listing():
 
     def __get_rating(self, tree):
         try:
+            # 2016-04-10
+            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")[0]
             temp = tree.xpath(
                 "//meta[contains(@property,'airbedandbreakfast:rating')]"
                 "/@content"
                 )
-            if len(temp) > 0:
+            if s is not None:
+                j = json.loads(s)
+                self.overall_satisfaction = j["listing"]["star_rating"]
+            elif len(temp) > 0:
                 self.overall_satisfaction = temp[0]
         except:
             raise
@@ -555,12 +560,17 @@ class Listing():
 
     def __get_host_id(self, tree):
         try:
+            # 2016-04-10
+            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")[0]
             temp = tree.xpath(
                 "//div[@id='host-profile']"
                 "//a[contains(@href,'/users/show')]"
                 "/@href"
             )
-            if len(temp) > 0:
+            if s is not None:
+                j = json.loads(s)
+                self.host_id = j["listing"]["user"]["id"]
+            elif len(temp) > 0:
                 host_id_element = temp[0]
                 host_id_offset = len('/users/show/')
                 self.host_id = int(host_id_element[host_id_offset:])
@@ -652,12 +662,17 @@ class Listing():
 
     def __get_reviews(self, tree):
         try:
+            # 2016-04-10
+            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")[0]
             # 2015-10-02
             temp2 = tree.xpath(
                 "//div[@class='___iso-state___p3summarybundlejs']"
                 "/@data-state"
                 )
-            if len(temp2) == 1:
+            if s is not None:
+                j = json.loads(s)
+                self.reviews = j["listing"]["review_details_interface"]["review_count"]
+            elif len(temp2) == 1:
                 summary = json.loads(temp2[0])
                 self.reviews = summary["visibleReviewCount"]
             elif len(temp2) == 0:
@@ -678,17 +693,23 @@ class Listing():
                     self.reviews = temp[0]
             if self.reviews is not None:
                 self.reviews = int(self.reviews)
-        except:
+        except Exception as e:
+            logger.exception(e)
             self.reviews = None
 
     def __get_accommodates(self, tree):
         try:
+            # 2016-04-10
+            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")[0]
             temp = tree.xpath(
                 "//div[@class='col-md-6']"
                 "/div/span[text()[contains(.,'Accommodates:')]]"
                 "/../strong/text()"
                 )
-            if len(temp) > 0:
+            if s is not None:
+                j = json.loads(s)
+                self.accommodates = j["listing"]["person_capacity"]
+            elif len(temp) > 0:
                 self.accommodates = temp[0].strip()
             else:
                 temp = tree.xpath(
