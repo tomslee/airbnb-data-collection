@@ -523,16 +523,18 @@ class Listing():
     def __get_rating(self, tree):
         try:
             # 2016-04-10
-            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")[0]
+            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")
             temp = tree.xpath(
                 "//meta[contains(@property,'airbedandbreakfast:rating')]"
                 "/@content"
                 )
             if s is not None:
-                j = json.loads(s)
+                j = json.loads(s[0])
                 self.overall_satisfaction = j["listing"]["star_rating"]
             elif len(temp) > 0:
                 self.overall_satisfaction = temp[0]
+        except IndexError:
+            return
         except:
             raise
 
@@ -561,15 +563,16 @@ class Listing():
     def __get_host_id(self, tree):
         try:
             # 2016-04-10
-            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")[0]
+            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")
             temp = tree.xpath(
                 "//div[@id='host-profile']"
                 "//a[contains(@href,'/users/show')]"
                 "/@href"
             )
             if s is not None:
-                j = json.loads(s)
+                j = json.loads(s[0])
                 self.host_id = j["listing"]["user"]["id"]
+                return
             elif len(temp) > 0:
                 host_id_element = temp[0]
                 host_id_offset = len('/users/show/')
@@ -583,6 +586,8 @@ class Listing():
                     host_id_element = temp[0]
                     host_id_offset = len('/users/show/')
                     self.host_id = int(host_id_element[host_id_offset:])
+        except IndexError:
+            return
         except:
             raise
 
@@ -663,15 +668,16 @@ class Listing():
     def __get_reviews(self, tree):
         try:
             # 2016-04-10
-            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")[0]
+            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")
             # 2015-10-02
             temp2 = tree.xpath(
                 "//div[@class='___iso-state___p3summarybundlejs']"
                 "/@data-state"
                 )
             if s is not None:
-                j = json.loads(s)
-                self.reviews = j["listing"]["review_details_interface"]["review_count"]
+                j = json.loads(s[0])
+                self.reviews = \
+                    j["listing"]["review_details_interface"]["review_count"]
             elif len(temp2) == 1:
                 summary = json.loads(temp2[0])
                 self.reviews = summary["visibleReviewCount"]
@@ -693,6 +699,8 @@ class Listing():
                     self.reviews = temp[0]
             if self.reviews is not None:
                 self.reviews = int(self.reviews)
+        except IndexError:
+            return
         except Exception as e:
             logger.exception(e)
             self.reviews = None
@@ -700,15 +708,16 @@ class Listing():
     def __get_accommodates(self, tree):
         try:
             # 2016-04-10
-            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")[0]
+            s = tree.xpath("//meta[@id='_bootstrap-listing']/@content")
             temp = tree.xpath(
                 "//div[@class='col-md-6']"
                 "/div/span[text()[contains(.,'Accommodates:')]]"
                 "/../strong/text()"
                 )
             if s is not None:
-                j = json.loads(s)
+                j = json.loads(s[0])
                 self.accommodates = j["listing"]["person_capacity"]
+                return
             elif len(temp) > 0:
                 self.accommodates = temp[0].strip()
             else:
@@ -727,7 +736,7 @@ class Listing():
                     )
                     if len(temp) > 0:
                         self.accommodates = temp[0].strip()
-            if self.accommodates:
+            if type(self.accommodates) == str:
                 self.accommodates = self.accommodates.split('+')[0]
                 self.accommodates = self.accommodates.split(' ')[0]
             self.accommodates = int(self.accommodates)
