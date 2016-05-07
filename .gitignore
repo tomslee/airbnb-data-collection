@@ -8,9 +8,12 @@
 *.zip
 *.pyc
 *.bat
+*.json
 temp.*
 googlemaps.py
 !example.config
+.ropeproject/*
+/reports/*
 /backup/*
 /geojson/*
 /gis/*

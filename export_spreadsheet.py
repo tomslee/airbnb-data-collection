@@ -12,7 +12,7 @@ LOG_LEVEL = logging.DEBUG
 # Set up logging
 LOG_FORMAT = '%(levelname)-8s%(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
-START_DATE = '2010-07-24'
+START_DATE = '2016-04-02'
 # START_DATE = '2015-07-24'
 
 

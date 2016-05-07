@@ -22,6 +22,7 @@ import time
 import random
 import requests
 from lxml import html
+from datetime import date
 import psycopg2
 import psycopg2.errorcodes
 import webbrowser
@@ -54,9 +55,9 @@ SEARCH_MAX_GUESTS = None
 SEARCH_MAX_RECTANGLE_ZOOM = None
 SEARCH_RECTANGLE_TRUNCATE_CRITERION = 1000
 SEARCH_RECTANGLE_EDGE_BLUR = 0.0
-SEARCH_BY_NEIGHBORHOOD = 0  # default
-SEARCH_BY_ZIPCODE = 1
-SEARCH_BY_BOUNDING_BOX = 2
+SEARCH_BY_NEIGHBORHOOD = 'neighborhood'  # default
+SEARCH_BY_ZIPCODE = 'zipcode'
+SEARCH_BY_BOUNDING_BOX = 'bounding box'
 SEARCH_LISTINGS_ON_FULL_PAGE = 18
 RE_INIT_SLEEP_TIME = 0.0  # seconds
 
@@ -920,6 +921,7 @@ class Survey():
         logger.info("Survey {survey_id}, for {search_area_name}".format(
             survey_id=self.survey_id, search_area_name=self.search_area_name
         ))
+        self.__update_survey_entry(search_by)
         if self.search_area_name == SEARCH_AREA_GLOBAL:
             # "Special case": global search
             room_count = 0
@@ -1034,6 +1036,26 @@ class Survey():
             return False
         except Exception:
             logger.error("Save survey search page failed")
+            return False
+
+    def __update_survey_entry(self, search_by):
+        try:
+            survey_info = (date.today(),
+                           search_by,
+                           self.survey_id, )
+            sql = """
+            update survey
+            set survey_date = %s, survey_method = %s
+            where survey_id = %s
+            """
+            conn = connect()
+            cur = conn.cursor()
+            cur.execute(sql, survey_info)
+            return True
+        except psycopg2.Error as pge:
+            logger.error(pge.pgerror)
+            cur.close()
+            conn.rollback()
             return False
 
     def __set_search_area(self):
