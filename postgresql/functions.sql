@@ -69,7 +69,7 @@ $BODY$
 $BODY$ language sql
 ;
 
-create function add_survey( in varchar(255) ) RETURNS VOID as
+create or replace function add_survey( in varchar(255) ) RETURNS VOID as
 $BODY$
   insert into survey( survey_description, search_area_id )
     select(name || ' (' || current_date || ')') as survey_description,
@@ -79,7 +79,7 @@ $BODY$
 $BODY$ language sql
 ;
 
-create function new_room( in old_survey_id integer, in new_survey_id integer ) 
+create or replace function new_room( in old_survey_id integer, in new_survey_id integer ) 
 returns table ( "room_id" integer ) as
 $BODY$
   select "room_id"
