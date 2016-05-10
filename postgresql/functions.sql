@@ -69,7 +69,7 @@ $BODY$
 $BODY$ language sql
 ;
 
-create function add_survey( in varchar(255) ) as
+create function add_survey( in varchar(255) ) RETURNS VOID as
 $BODY$
   insert into survey( survey_description, search_area_id )
     select(name || ' (' || current_date || ')') as survey_description,
@@ -89,22 +89,3 @@ $BODY$
   select "room_id" from "survey_room"(old_survey_id)) 
   as "t"
 $BODY$ language sql
-
-create function trg_location()
-returns trigger
-as
-$trg_location$
-BEGIN
-  NEW.location := st_setsrid(
-  st_makepoint(NEW.longitude, NEW.latitude), 
-  4326
-  );
-  RETURN NEW;
- END
-$trg_location$ language plpgsql;
-
-create trigger trg_location
-before insert or update of latitude, longitude
-on room
-for each row
-execute procedure trg_location();
