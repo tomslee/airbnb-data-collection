@@ -1124,12 +1124,9 @@ class Survey():
                            rectangle_zoom, flag):
         new_rooms = ws_search_rectangle(self, room_type, guests,
                                         rectangle, rectangle_zoom, flag)
-        logger.info(("{room_type} ({g} guests): zoom level {rect_zoom}: "
-                     "{new_rooms} new rooms.").format(
-                         room_type=room_type, g=str(guests),
-                         rect_zoom=str(rectangle_zoom),
-                         new_rooms=str(new_rooms)))
-        if new_rooms > 0 and rectangle_zoom < SEARCH_MAX_RECTANGLE_ZOOM:
+
+        #if too many have been found split the search into areas
+        if new_rooms == -1 and rectangle_zoom < SEARCH_MAX_RECTANGLE_ZOOM:
             # break the rectangle into quadrants
             # (n_lat, e_lng, s_lat, w_lng).
             (n_lat, e_lng, s_lat, w_lng) = rectangle
@@ -1158,6 +1155,12 @@ class Survey():
                         s_lat - blur, w_lng + blur)
             new_rooms = self.__search_rectangle(room_type, guests,
                                                 quadrant, rectangle_zoom, flag)
+        else:
+            logger.info(("{room_type} ({g} guests): zoom level {rect_zoom}: "
+                         "{new_rooms} new rooms.").format(
+                             room_type=room_type, g=str(guests),
+                             rect_zoom=str(rectangle_zoom),
+                             new_rooms=str(new_rooms)))
 
         if flag == FLAGS_PRINT:
             # for FLAGS_PRINT, fetch one page and print it
@@ -1752,10 +1755,6 @@ def ws_search_rectangle(survey, room_type, guests,
                                                  guests=str(guests),
                                                  zoom=str(rectangle_zoom)))
         new_rooms = 0
-        if rectangle_zoom >= (SEARCH_MAX_RECTANGLE_ZOOM - 1):
-            truncate_criterion = 999999
-        else:
-            truncate_criterion = SEARCH_RECTANGLE_TRUNCATE_CRITERION
         for page_number in range(1, SEARCH_MAX_PAGES):
             logger.info("Page " + str(page_number) + "...")
             params = {}
@@ -1771,7 +1770,14 @@ def ws_search_rectangle(survey, room_type, guests,
             response_json = response.json()
             hits_count = response_json["logging_info"]["search"]["result"]["totalHits"]
             if hits_count > 300:
-                logger.error("More than 300 hits found - reults will not be complete!")
+                if rectangle_zoom >= (SEARCH_MAX_RECTANGLE_ZOOM - 1):
+                    logger.error("More than 300 results on maximum zoom level - there will be lost results!"
+                                 "Consider incresing the maximum.")
+                else:
+                    logger.info(("Found {rooms} rooms. "
+                                 "Search would be incomplete - zooming in").format(
+                                 rooms=str(hits_count)))
+                    return -1
             room_elements = response_json["property_ids"]
             room_count = len(room_elements)
             if room_count > 0:
@@ -1790,11 +1796,6 @@ def ws_search_rectangle(survey, room_type, guests,
                 sys.exit(0)
             if room_count < SEARCH_LISTINGS_ON_FULL_PAGE:
                 logger.debug("Final page of listings for this search")
-                break
-            if new_rooms >= truncate_criterion:
-                logger.info(("Found {new_rooms} new rooms. "
-                             "Truncating search and zooming in").format(
-                             new_rooms=str(new_rooms)))
                 break
         return new_rooms
     except UnicodeEncodeError:
