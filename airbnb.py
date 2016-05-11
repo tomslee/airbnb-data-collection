@@ -1771,7 +1771,7 @@ def ws_search_rectangle(survey, room_type, guests,
             response_json = response.json()
             hits_count = response_json["logging_info"]["search"]["result"]["totalHits"]
             if hits_count > 300:
-                logger.error("More than 300 hits found - reults will not be complete! Consider using a bounding box search.")
+                logger.error("More than 300 hits found - reults will not be complete!")
             room_elements = response_json["property_ids"]
             room_count = len(room_elements)
             if room_count > 0:
