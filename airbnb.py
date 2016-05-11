@@ -1270,7 +1270,11 @@ class Survey():
             params["room_types[]"] = room_type
             params["neighborhoods[]"] = neighborhood
             response = ws_request_with_repeats(URL_API_SEARCH_ROOT, params)
-            room_elements = response.json()["property_ids"]
+            response_json = response.json()
+            hits_count = response_json["logging_info"]["search"]["result"]["totalHits"]
+            if hits_count > 300:
+                logger.error("More than 300 hits found - reults will not be complete! Consider using a bounding box search.")
+            room_elements = response_json["property_ids"]
             logger.debug("Found " + str(len(room_elements)) +
                          "new or existing rooms.")
 
@@ -1764,7 +1768,11 @@ def ws_search_rectangle(survey, room_type, guests,
             params["ne_lat"] = str(rectangle[0])
             params["ne_lng"] = str(rectangle[1])
             response = ws_request_with_repeats(URL_API_SEARCH_ROOT, params)
-            room_elements = response.json()["property_ids"]
+            response_json = response.json()
+            hits_count = response_json["logging_info"]["search"]["result"]["totalHits"]
+            if hits_count > 300:
+                logger.error("More than 300 hits found - reults will not be complete! Consider using a bounding box search.")
+            room_elements = response_json["property_ids"]
             room_count = len(room_elements)
             if room_count > 0:
                 logger.info("Found " + str(room_count) + " rooms")
