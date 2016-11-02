@@ -12,8 +12,8 @@ LOG_LEVEL = logging.DEBUG
 # Set up logging
 LOG_FORMAT = '%(levelname)-8s%(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
-START_DATE = '2016-04-02'
-# START_DATE = '2015-07-24'
+START_DATE = '2013-05-02'
+# START_DATE = '2016-08-31'
 
 
 def init():
@@ -105,7 +105,9 @@ def connect():
 
 
 def export_city_data(city, project, format):
-    logging.info(" ---- Exporting data for " + city)
+    logging.info(" ---- Exporting " + format +
+                 " for " + city +
+                 " using project " + project)
     survey_ids = []
     survey_dates = []
     survey_comments = []

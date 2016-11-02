@@ -764,7 +764,7 @@ class Listing():
             if self.bedrooms:
                 self.bedrooms = self.bedrooms.split('+')[0]
                 self.bedrooms = self.bedrooms.split(' ')[0]
-            self.bedrooms = int(self.bedrooms)
+            self.bedrooms = float(self.bedrooms)
         except:
             self.bedrooms = None
 
@@ -788,7 +788,7 @@ class Listing():
             if self.bathrooms:
                 self.bathrooms = self.bathrooms.split('+')[0]
                 self.bathrooms = self.bathrooms.split(' ')[0]
-            self.bathrooms = int(self.bathrooms)
+            self.bathrooms = float(self.bathrooms)
         except:
             self.bathrooms = None
 
