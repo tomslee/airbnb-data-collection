@@ -120,7 +120,7 @@ def init():
         config.read(config_file)
         # database
         global DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
-        DB_HOST = config["DATABASE"]["db_host"]
+        DB_HOST = config["DATABASE"]["db_host"] if ("db_host" in config["DATABASE"]) else None
         DB_PORT = config["DATABASE"]["db_port"]
         DB_NAME = config["DATABASE"]["db_name"]
         DB_USER = config["DATABASE"]["db_user"]
@@ -167,21 +167,18 @@ def init():
 def connect():
     """ Return a connection to the database"""
     try:
-        if not hasattr(connect, "conn"):
-            connect.conn = psycopg2.connect(
+        if not hasattr(connect, "conn") or connect.conn is None or connect.conn.closed != 0:
+            cattr = dict(
                 user=DB_USER,
                 password=DB_PASSWORD,
-                host=DB_HOST,
-                port=DB_PORT,
-                database=DB_NAME)
-            connect.conn.set_client_encoding('UTF8')
-        elif connect.conn is None or connect.conn.closed != 0:
-            connect.conn = psycopg2.connect(
-                user=DB_USER,
-                password=DB_PASSWORD,
-                host=DB_HOST,
-                port=DB_PORT,
-                database=DB_NAME)
+                database=DB_NAME
+            )
+            if not DB_HOST == None:
+                cattr.update(dict(
+                            host=DB_HOST,
+                            port=DB_PORT,
+                            ))
+            connect.conn = psycopg2.connect(**cattr)
             connect.conn.set_client_encoding('UTF8')
         return connect.conn
     except psycopg2.OperationalError as pgoe:

@@ -10,7 +10,7 @@ Airbnb is increasingly making it difficult to scrape significant amounts of data
 
 You must be comfortable messing about with databases and python to use this.
 
-The airbnb.py script works with a PostgreSQL database. The schema is in the two files postgresql/schema.sql and postgresql/functions.sql. You need to run those to create the database tables to start with.
+The airbnb.py script works with a PostgreSQL database. You need to have the PostGIS extension installed. The schema is in the two files postgresql/schema.sql and postgresql/functions.sql. You need to run those to create the database tables to start with.
 
 To run the airbnb.py scraper you will need to use python 3.4 and install the modules listed at the top of the file. The difficult one is lxml: you'll have to go to their web site to get it. It doesn't seem to be in the normal python repositories so if you're on Linux you may get it through an application package manager (apt-get or yum, for example).
 
