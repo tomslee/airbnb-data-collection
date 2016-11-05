@@ -81,8 +81,8 @@ FLAGS_INSERT_NO_REPLACE = False
 # 2.3 released Jan 12, 2015, to handle a web site update
 SCRIPT_VERSION_NUMBER = 2.6
 
-# LOG_LEVEL = logging.DEBUG
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
+# LOG_LEVEL = logging.INFO
 # Set up logging
 logger = logging.getLogger()
 # Suppress informational logging from requests module
@@ -1270,7 +1270,17 @@ class Survey():
             params["room_types[]"] = room_type
             params["neighborhoods[]"] = neighborhood
             response = ws_request_with_repeats(URL_API_SEARCH_ROOT, params)
-            room_elements = response.json()["property_ids"]
+            # Airbnb update 2016-11-05: some responses contain no property_ids
+            if "property_ids" in response.json():
+                room_elements = response.json()["property_ids"]
+            else:
+                logger.info("No property_ids: breaking")
+                logger.debug(json.dumps(response.json(),
+                                        sort_keys=True,
+                                        indent=4,
+                                        separators=(',', ': '))
+                             )
+                return
             logger.debug("Found " + str(len(room_elements)) +
                          "new or existing rooms.")
 
@@ -1764,7 +1774,18 @@ def ws_search_rectangle(survey, room_type, guests,
             params["ne_lat"] = str(rectangle[0])
             params["ne_lng"] = str(rectangle[1])
             response = ws_request_with_repeats(URL_API_SEARCH_ROOT, params)
-            room_elements = response.json()["property_ids"]
+            # Airbnb update 2016-11-05: some responses contain no property_ids
+            # key: assume this means the end of the page list for that search.
+            if "property_ids" in response.json():
+                room_elements = response.json()["property_ids"]
+            else:
+                logger.info("No property_ids: breaking")
+                logger.debug(json.dumps(response.json(),
+                                        sort_keys=True,
+                                        indent=4,
+                                        separators=(',', ': '))
+                             )
+                break
             room_count = len(room_elements)
             if room_count > 0:
                 logger.info("Found " + str(room_count) + " rooms")
