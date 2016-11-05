@@ -81,8 +81,8 @@ FLAGS_INSERT_NO_REPLACE = False
 # 2.3 released Jan 12, 2015, to handle a web site update
 SCRIPT_VERSION_NUMBER = 2.6
 
-LOG_LEVEL = logging.DEBUG
-# LOG_LEVEL = logging.INFO
+# LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 # Set up logging
 logger = logging.getLogger()
 # Suppress informational logging from requests module
