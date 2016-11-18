@@ -9,6 +9,7 @@
 *.pyc
 *.bat
 *.json
+*.sh
 temp.*
 googlemaps.py
 !example.config

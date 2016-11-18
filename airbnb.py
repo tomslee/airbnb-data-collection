@@ -1779,13 +1779,13 @@ def ws_search_rectangle(survey, room_type, guests,
             if "property_ids" in response.json():
                 room_elements = response.json()["property_ids"]
             else:
-                logger.info("No property_ids: breaking")
+                logger.debug("No property_ids: continue to next loop")
                 logger.debug(json.dumps(response.json(),
                                         sort_keys=True,
                                         indent=4,
                                         separators=(',', ': '))
                              )
-                break
+                continue
             room_count = len(room_elements)
             if room_count > 0:
                 logger.info("Found " + str(room_count) + " rooms")
