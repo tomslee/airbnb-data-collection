@@ -81,8 +81,8 @@ FLAGS_INSERT_NO_REPLACE = False
 # 2.3 released Jan 12, 2015, to handle a web site update
 SCRIPT_VERSION_NUMBER = 2.6
 
-# LOG_LEVEL = logging.DEBUG
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
+# LOG_LEVEL = logging.INFO
 # Set up logging
 logger = logging.getLogger()
 # Suppress informational logging from requests module
@@ -120,7 +120,10 @@ def init():
         config.read(config_file)
         # database
         global DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
-        DB_HOST = config["DATABASE"]["db_host"] if ("db_host" in config["DATABASE"]) else None
+        if ("db_host" in config["DATABASE"]):
+            DB_HOST = config["DATABASE"]["db_host"]
+        else:
+            DB_HOST = None
         DB_PORT = config["DATABASE"]["db_port"]
         DB_NAME = config["DATABASE"]["db_name"]
         DB_USER = config["DATABASE"]["db_user"]
@@ -167,13 +170,15 @@ def init():
 def connect():
     """ Return a connection to the database"""
     try:
-        if not hasattr(connect, "conn") or connect.conn is None or connect.conn.closed != 0:
+        if (not hasattr(connect, "conn") or
+            connect.conn is None or
+            connect.conn.closed != 0):
             cattr = dict(
                 user=DB_USER,
                 password=DB_PASSWORD,
                 database=DB_NAME
             )
-            if not DB_HOST == None:
+            if DB_HOST is not None:
                 cattr.update(dict(
                             host=DB_HOST,
                             port=DB_PORT,
@@ -1271,16 +1276,12 @@ class Survey():
             params["neighborhoods[]"] = neighborhood
             response = ws_request_with_repeats(URL_API_SEARCH_ROOT, params)
             # Airbnb update 2016-11-05: some responses contain no property_ids
-            if "property_ids" in response.json():
-                room_elements = response.json()["property_ids"]
-            else:
-                logger.info("No property_ids: breaking")
-                logger.debug(json.dumps(response.json(),
-                                        sort_keys=True,
-                                        indent=4,
-                                        separators=(',', ': '))
-                             )
-                return
+            # key: pick up the room_id from elsewhere
+            # (Could get more info)
+            json = response.json()
+            room_elements = []
+            for result in json["results_json"]["search_results"]:
+                room_elements.append(result["listing"]["id"])
             logger.debug("Found " + str(len(room_elements)) +
                          "new or existing rooms.")
 
@@ -1300,6 +1301,7 @@ class Survey():
                     room_id = int(room_element)
                     if room_id is not None:
                         listing = Listing(room_id, self.survey_id, room_type)
+                        # could add more data here
                         if flag == FLAGS_ADD:
                             listing.save(FLAGS_INSERT_NO_REPLACE)
                         elif flag == FLAGS_PRINT:
@@ -1775,17 +1777,12 @@ def ws_search_rectangle(survey, room_type, guests,
             params["ne_lng"] = str(rectangle[1])
             response = ws_request_with_repeats(URL_API_SEARCH_ROOT, params)
             # Airbnb update 2016-11-05: some responses contain no property_ids
-            # key: assume this means the end of the page list for that search.
-            if "property_ids" in response.json():
-                room_elements = response.json()["property_ids"]
-            else:
-                logger.debug("No property_ids: continue to next loop")
-                logger.debug(json.dumps(response.json(),
-                                        sort_keys=True,
-                                        indent=4,
-                                        separators=(',', ': '))
-                             )
-                continue
+            # key: pick up the room_id from elsewhere
+            # (Could get more info)
+            json = response.json()
+            room_elements = []
+            for result in json["results_json"]["search_results"]:
+                room_elements.append(result["listing"]["id"])
             room_count = len(room_elements)
             if room_count > 0:
                 logger.info("Found " + str(room_count) + " rooms")
