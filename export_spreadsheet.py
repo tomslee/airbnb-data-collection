@@ -12,8 +12,8 @@ LOG_LEVEL = logging.DEBUG
 # Set up logging
 LOG_FORMAT = '%(levelname)-8s%(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
-START_DATE = '2013-05-02'
-# START_DATE = '2016-08-31'
+# START_DATE = '2013-05-02'
+START_DATE = '2016-08-31'
 
 
 def init():
@@ -104,73 +104,187 @@ def connect():
         raise
 
 
-def export_city_data(city, project, format):
-    logging.info(" ---- Exporting " + format +
-                 " for " + city +
-                 " using project " + project)
-    survey_ids = []
-    survey_dates = []
-    survey_comments = []
+def survey_df(city):
     sql_survey_ids = """
         select survey_id, survey_date, comment
         from survey s, search_area sa
         where s.search_area_id = sa.search_area_id
-        and sa.name = %s
-        and s.survey_date > %s
+        and sa.name = %(name)s
+        and s.survey_date > %(date)s
         and s.status = 1
         order by survey_id
     """
     conn = connect()
-    cur = conn.cursor()
-    cur.execute(sql_survey_ids, (city, START_DATE,))
-    rs = cur.fetchall()
-    if len(rs) == 0:
-        logging.error("No surveys found for " + city)
-        sys.exit()
-    for row in rs:
-        survey_ids.append(row[0])
-        survey_dates.append(row[1])
-        survey_comments.append(row[2])
+    df = pd.read_sql(sql_survey_ids, conn,
+                     params={"name": city, "date": START_DATE})
+    conn.close()
+    return(df)
 
+
+def city_view_name(city):
+    sql_abbrev = """
+    select abbreviation from search_area
+    where name = %s
+    """
+    conn = connect()
+    cur = conn.cursor()
+    cur.execute(sql_abbrev, (city, ))
+    city_view_name = 'listing_' + cur.fetchall()[0][0]
+    cur.close()
+    return city_view_name
+
+
+def total_listings(city_view):
+    sql = """select s.survey_id "Survey",
+    survey_date "Date", count(*) "Listings"
+    from {city_view} r join survey s
+    on r.survey_id = s.survey_id
+    group by 1, 2
+    order by 1
+    """.format(city_view=city_view)
+    conn = connect()
+    df = pd.read_sql(sql, conn)
+    conn.close()
+    return df
+
+
+def by_room_type(city_view):
+    sql = """select s.survey_id "Survey",
+    survey_date "Date", room_type "Room Type",
+    count(*) "Listings", sum(reviews) "Reviews",
+    sum(reviews * price) "Relative Income"
+    from {city_view} r join survey s
+    on r.survey_id = s.survey_id
+    where room_type is not null
+    group by 1, 2, 3
+    order by 1
+    """.format(city_view=city_view)
+    conn = connect()
+    df = pd.read_sql(sql, conn)
+    conn.close()
+    return df.pivot(index="Date", columns="Room Type")
+
+
+def by_host_type(city_view):
+    sql = """
+    select survey_id "Survey",
+        survey_date "Date",
+        case when listings_for_host = 1
+        then 'Single' else 'Multi'
+        end "Host Type",
+        sum(hosts) "Hosts", sum(listings) "Listings", sum(reviews) "Reviews"
+    from (
+        select survey_id, survey_date,
+        listings_for_host, count(*) hosts,
+        sum(listings_for_host) listings, sum(reviews) reviews
+        from  (
+            select s.survey_id survey_id, survey_date,
+            host_id, count(*) listings_for_host,
+            sum(reviews) reviews
+            from {city_view} r join survey s
+            on r.survey_id = s.survey_id
+            group by s.survey_id, survey_date, host_id
+            ) T1
+        group by 1, 2, 3
+    ) T2
+    group by 1, 2, 3
+    """.format(city_view=city_view)
+    conn = connect()
+    df = pd.read_sql(sql, conn)
+    conn.close()
+    df = df.pivot(index="Date", columns="Host Type")
+    # df.set_index(["Date"], drop=False, inplace=True)
+    return df
+
+
+def by_neighborhood(city_view):
+    sql = """select
+        s.survey_id, survey_date "Date", neighborhood "Neighborhood",
+        count(*) "Listings", sum(reviews) "Reviews"
+    from {city_view} r join survey s
+    on r.survey_id = s.survey_id
+    group by 1, 2, 3
+    """.format(city_view=city_view)
+    conn = connect()
+    df = pd.read_sql(sql, conn)
+    conn.close()
+    df = df.pivot(index="Date", columns="Neighborhood")
+    # df.set_index(["Date"], drop=False, inplace=True)
+    return df
+
+
+def export_city_summary(city, project):
+    logging.info(" ---- Exporting summary spreadsheet" +
+                 " for " + city +
+                 " using project " + project)
+    city_bar = city.replace(" ", "_").lower()
+    today = dt.date.today().isoformat()
+    xlsxfile = ("./{project}/slee_{project}_{city_bar}_summary_{today}.xlsx"
+                ).format(project=project, city_bar=city_bar, today=today)
+    writer = pd.ExcelWriter(xlsxfile, engine="xlsxwriter")
+    df = survey_df(city)
+    city_view = city_view_name(city)
+    logging.info("Total listings...")
+    df = total_listings(city_view)
+    df.to_excel(writer, sheet_name="Total Listings", index=False)
+    logging.info("Listings by room type...")
+    df = by_room_type(city_view)
+    df["Listings"].to_excel(writer,
+                            sheet_name="Listings by room type", index=True)
+    df["Reviews"].to_excel(writer,
+                           sheet_name="Reviews by room type", index=True)
+    logging.info("Listings by host type...")
+    df = by_host_type(city_view)
+    df["Hosts"].to_excel(writer,
+                         sheet_name="Hosts by host type", index=True)
+    df["Listings"].to_excel(writer,
+                            sheet_name="Listings by host type", index=True)
+    df["Reviews"].to_excel(writer,
+                           sheet_name="Reviews by host type", index=True)
+    logging.info("Listings by neighborhood...")
+    df = by_neighborhood(city_view)
+    df["Listings"].to_excel(writer,
+                            sheet_name="Listings by Neighborhood", index=True)
+    df["Reviews"].to_excel(writer,
+                           sheet_name="Reviews by Neighborhood", index=True)
+    logging.info("Saving " + xlsxfile)
+    writer.save()
+
+
+def export_city_data(city, project, format):
+    logging.info(" ---- Exporting " + format +
+                 " for " + city +
+                 " using project " + project)
+
+    df = survey_df(city)
+    survey_ids = df["survey_id"].tolist()
+    survey_dates = df["survey_date"].tolist()
     logging.info(" ---- Surveys: " + ', '.join(str(id) for id in survey_ids))
 
     # survey_ids = [11, ]
     if project == "gis":
-        sql_abbrev = """
-        select abbreviation
-        from search_area
-        where name = %s
-        """
-        conn = connect()
-        cur = conn.cursor()
-        cur.execute(sql_abbrev, (city, ))
-        rs = cur.fetchall()
-        city_view = 'listing_' + rs[0][0]
-        cur.close()
+        city_view = city_view_name(city)
         sql = """
         select room_id, host_id, room_type,
-        borough, neighborhood,
-        reviews, overall_satisfaction,
-        accommodates, bedrooms, bathrooms,
-        price, minstay,
-        latitude, longitude,
-        last_modified as collected
-        from
-        """
-        sql += city_view
-        sql += """
+            borough, neighborhood,
+            reviews, overall_satisfaction,
+            accommodates, bedrooms, bathrooms,
+            price, minstay,
+            latitude, longitude,
+            last_modified as collected
+        from {city_view}
         where survey_id = %(survey_id)s
         order by room_id
-        """
+        """.format(city_view=city_view)
     elif project == "hvs":
         sql = """
         select room_id, host_id, room_type,
-        borough, neighborhood,
-        reviews, overall_satisfaction,
-        accommodates, bedrooms, bathrooms,
-        price, minstay,
-        latitude, longitude,
-        last_modified as collected
+            borough, neighborhood,
+            reviews, overall_satisfaction,
+            accommodates, bedrooms, bathrooms,
+            price, minstay,
+            latitude, longitude,
+            last_modified as collected
         from hvs.listing
         where survey_id = %(survey_id)s
         order by room_id
@@ -178,27 +292,28 @@ def export_city_data(city, project, format):
     else:
         sql = """
         select room_id, host_id, room_type,
-        city, neighborhood,
-        reviews, overall_satisfaction,
-        accommodates, bedrooms, bathrooms,
-        price, minstay,
-        latitude, longitude,
-        last_modified as collected
+            city, neighborhood,
+            reviews, overall_satisfaction,
+            accommodates, bedrooms, bathrooms,
+            price, minstay,
+            latitude, longitude,
+            last_modified as collected
         from survey_room(%(survey_id)s)
         order by room_id
         """
 
     city_bar = city.replace(" ", "_").lower()
+    conn = connect()
     if format == "csv":
-        for survey_id, survey_date, survey_comment in \
-                zip(survey_ids, survey_dates, survey_comments):
+        for survey_id, survey_date in \
+                zip(survey_ids, survey_dates):
             csvfile = ("./{project}/ts_{city_bar}_{survey_date}.csv").format(
                 project=project, city_bar=city_bar,
                 survey_date=str(survey_date))
             csvfile = csvfile.lower()
             df = pd.read_sql(sql, conn,
                              # index_col="room_id",
-                             params={"survey_id": survey_id}
+                             params={"survey_id": survey_id.item()}
                              )
             logging.info("CSV export: survey " +
                          str(survey_id) + " to " + csvfile)
@@ -211,29 +326,16 @@ def export_city_data(city, project, format):
         writer = pd.ExcelWriter(xlsxfile, engine="xlsxwriter")
         logging.info("Spreadsheet name: " + xlsxfile)
         # read surveys
-        for survey_id, survey_date, survey_comment in \
-                zip(survey_ids, survey_dates, survey_comments):
+        for survey_id, survey_date in \
+                zip(survey_ids, survey_dates):
             logging.info("Survey " + str(survey_id) + " for " + city)
             df = pd.read_sql(sql, conn,
                              # index_col="room_id",
-                             params={"survey_id": survey_id}
+                             params={"survey_id": survey_id.item()}
                              )
             if len(df) > 0:
                 logging.info("Survey " + str(survey_id) +
                              ": to Excel worksheet")
-                if survey_comment:
-                    pass
-                    # This comment feature is not currently doing anything
-                    # options = {
-                    # 'width': 256,
-                    # 'height': 100,
-                    # 'x_offset': 10,
-                    # 'y_offset': 10,
-                    # 'font': {'color': 'red', 'size': 14},
-                    # 'align': {'vertical': 'middle',
-                    # 'horizontal': 'center'
-                    # },
-                    # }
                 df.to_excel(writer, sheet_name=str(survey_date))
             else:
                 logging.info("Survey " + str(survey_id) +
@@ -303,10 +405,16 @@ def main():
     parser.add_argument('-f', '--format',
                         metavar='format', action='store', default="xlsx",
                         help="""output format (xlsx or csv), default xlsx""")
+    parser.add_argument('-s', '--summary',
+                        action='store_true', default=False,
+                        help="create a summary spreadsheet instead of raw data")
     args = parser.parse_args()
 
     if args.city:
-        export_city_data(args.city, args.project.lower(), args.format)
+        if args.summary:
+            export_city_summary(args.city, args.project.lower())
+        else:
+            export_city_data(args.city, args.project.lower(), args.format)
     else:
         parser.print_help()
 
