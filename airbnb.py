@@ -120,10 +120,7 @@ def init():
         config.read(config_file)
         # database
         global DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
-        if ("db_host" in config["DATABASE"]):
-            DB_HOST = config["DATABASE"]["db_host"]
-        else:
-            DB_HOST = None
+        DB_HOST = config["DATABASE"]["db_host"] if ("db_host" in config["DATABASE"]) else None
         DB_PORT = config["DATABASE"]["db_port"]
         DB_NAME = config["DATABASE"]["db_name"]
         DB_USER = config["DATABASE"]["db_user"]
@@ -170,15 +167,13 @@ def init():
 def connect():
     """ Return a connection to the database"""
     try:
-        if (not hasattr(connect, "conn") or
-            connect.conn is None or
-            connect.conn.closed != 0):
+        if not hasattr(connect, "conn") or connect.conn is None or connect.conn.closed != 0:
             cattr = dict(
                 user=DB_USER,
                 password=DB_PASSWORD,
                 database=DB_NAME
             )
-            if DB_HOST is not None:
+            if not DB_HOST == None:
                 cattr.update(dict(
                             host=DB_HOST,
                             port=DB_PORT,
@@ -220,7 +215,19 @@ class Listing():
         self.latitude = None
         self.longitude = None
         self.survey_id = survey_id
-
+        #  extra fields added from search json:
+        # coworker_hosted (bool)
+        self.coworker_hosted = None
+        # extra_host_languages (list)
+        self.extra_host_languages = None
+        # name (str)
+        self.name = None
+        # property_type (str)
+        self.property_type = None
+        # currency (str)
+        self.currency = None
+        # rate_type (str) - "nightly" or other?
+        self.rate_type = None
         """ """
 
     def status_check(self):
@@ -431,12 +438,16 @@ class Listing():
                     room_id, host_id, room_type, country, city,
                     neighborhood, address, reviews, overall_satisfaction,
                     accommodates, bedrooms, bathrooms, price, deleted,
-                    minstay, latitude, longitude, survey_id
+                    minstay, latitude, longitude, survey_id,
+                    coworker_hosted, extra_host_languages, name,
+                    property_type, currency, rate_type
+
                 )
                 """
             sql += """
                 values (%s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s
                 )"""
             insert_args = (
                 self.room_id, self.host_id, self.room_type, self.country,
@@ -444,6 +455,8 @@ class Listing():
                 self.overall_satisfaction, self.accommodates, self.bedrooms,
                 self.bathrooms, self.price, self.deleted, self.minstay,
                 self.latitude, self.longitude, self.survey_id,
+                int(self.coworker_hosted), self.extra_host_languages, self.name,
+                self.property_type, self.currency, self.rate_type
                 )
             cur.execute(sql, insert_args)
             cur.close()
@@ -473,7 +486,9 @@ class Listing():
                     address = %s, reviews = %s, overall_satisfaction = %s,
                     accommodates = %s, bedrooms = %s, bathrooms = %s,
                     price = %s, deleted = %s, last_modified = now()::timestamp,
-                    minstay = %s, latitude = %s, longitude = %s
+                    minstay = %s, latitude = %s, longitude = %s,
+                    coworker_hosted = %s, extra_host_languages = %s, name = %s,
+                    property_type = %s, currency = %s, rate_type = %s
                 where room_id = %s
                 and survey_id = %s"""
             update_args = (
@@ -484,6 +499,8 @@ class Listing():
                 self.price, self.deleted,
                 self.minstay, self.latitude,
                 self.longitude,
+                self.coworker_hosted, self.extra_host_languages, self.name,
+                self.property_type, self.currency, self.rate_type,
                 self.room_id,
                 self.survey_id,
                 )
@@ -875,6 +892,12 @@ class Listing():
             self.__get_price(tree)
             self.deleted = 0
 
+
+            # NOT FILLING HERE, but maybe should? have to write helper methods:
+            #coworker_hosted, extra_host_languages, name,
+            #    property_type, currency, rate_type
+
+
             self.status_check()
 
             if flag == FLAGS_ADD:
@@ -977,8 +1000,10 @@ class Survey():
 
             # Call the specific search function
             if search_by == SEARCH_BY_BOUNDING_BOX:
-                logger.info("Searching by bounding box")
-                self.__search_loop_bounding_box(flag)
+                #logger.info("Searching by bounding box")
+                #self.__search_loop_bounding_box(flag)
+                logger.info("Searching by bounding box - logged")
+                self.__search_loop_bounding_box_logged(flag)
                 pass
             elif search_by == SEARCH_BY_ZIPCODE:
                 logging.info("Searching by zipcode")
@@ -1039,6 +1064,44 @@ class Survey():
         except Exception:
             logger.error("Save survey search page failed")
             return False
+
+    def log_progress_bounding_box(self, room_type, guests, zoomstack, page_number, has_rooms):
+        """ Update survey_progress_log table to record current zoom stack and page number .
+        """
+        try:
+            zoomstack_str = ''
+            for zs in zoomstack:
+                zoomstack_str = zoomstack_str + str(zs)
+            page_info = (self.survey_id, room_type, guests, zoomstack_str, page_number, has_rooms)
+            logger.debug("Survey search progress  - bounding box: " + str(page_info))
+            sql_insert = """
+            insert into survey_progress_log
+            (survey_id, room_type,
+            guests, zoomstack, page_number, has_rooms)
+            values (%s, %s, %s, %s, %s, %s)
+            """
+            sql_delete = """
+            delete from survey_progress_log where survey_id = %s
+            """
+            conn = connect()
+            cur = conn.cursor()
+            #logger.debug("sql_delete string: %s", sql_delete)
+            cur.execute(sql_delete, (self.survey_id,))
+            #logger.debug("sql_insert string: %s", sql_insert)
+            cur.execute(sql_insert, page_info)
+            cur.close()
+            conn.commit()
+                #logger.debug("Logging survey search page for neighborhood " + str(neighborhood_id))
+            return True
+        except psycopg2.Error as pge:
+            logger.error(pge.pgerror)
+            cur.close()
+            conn.rollback()
+            return False
+        except Exception:
+            logger.error("Save survey search page failed")
+            return False
+
 
     def __update_survey_entry(self, search_by):
         try:
@@ -1125,6 +1188,84 @@ class Survey():
         except Exception:
             logger.exception("Error")
 
+    def __search_loop_bounding_box_logged(self, flag):
+        """
+        A bounding box is a rectangle around a city, specified in the
+        search_area table. The loop goes to quadrants of the bounding box
+        rectangle and, if new listings are found, breaks that rectangle
+        into four quadrants and tries again, recursively.
+        The rectangles, including the bounding box, are represented by
+        (n_lat, e_lng, s_lat, w_lng).
+        """
+        try:
+            conn = connect()
+            cur = conn.cursor()
+            cur.execute("""
+                        select bb_n_lat, bb_e_lng, bb_s_lat, bb_w_lng
+                        from search_area sa join survey s
+                        on sa.search_area_id = s.search_area_id
+                        where s.survey_id = %s""", (self.survey_id,))
+            bounding_box = cur.fetchone()
+            cur.close()
+
+            # check bounding box
+            if None in bounding_box:
+                logger.error("Invalid bounding box: contains 'None'")
+                return
+            if bounding_box[0] <= bounding_box[2]:
+                logger.error("Invalid bounding box: n_lat must be > s_lat")
+                return
+            if bounding_box[1] <= bounding_box[3]:
+                logger.error("Invalid bounding box: e_lng must be > w_lng")
+                return
+
+            logger.info("Bounding box: " + str(bounding_box))
+
+
+            # check for resume information for partially completed surveys in logger
+            try:
+                cur = conn.cursor()
+                cur.execute("""
+                        select room_type, page_number, guests, zoomstack
+                        from survey_progress_log
+                        where survey_id = %s """, (self.survey_id,))
+                (log_room_type, log_page_number, log_guests, log_zoomstack_str)= cur.fetchone()
+                cur.close()
+                log_zoomstack = []
+                # turn zoomstack string into list
+                for i in  range(len(log_zoomstack_str)) :
+                    log_zoomstack.append( int(log_zoomstack_str[i]))
+                log_resuming = True
+                logger.info("Resuming bounding_box search: room_type: %s, page_nunber: %d, guests: %d, zoomstack: %s", log_room_type, log_page_number, log_guests, str(log_zoomstack))
+            except:
+                cur.close()
+                logger.info("No resume information available")
+                # set up defaults here
+                log_zoomstack = []
+                log_page_number = 1
+                log_room_type = "Private room"
+                log_guests = 1
+                log_resuming = False
+
+            # skip outer loops according to log state and propagate zoomstack and page number inward on logged room_type
+            # NB: THERE SEEMS TO BE NO POINT IN ITERATING OVER GUEST NUMBERS - 1 GUEST SHOULD RETURN EVERYTHING - SO STRIPPED LOOP TO ROOM TYPES ONLY
+            guests = 1
+            rectangle_zoom = 0
+            for room_type in ("Private room", "Entire home/apt", "Shared room"):
+                # skip outer loop if resuming until get to logged room_type
+                if log_resuming and not (room_type == log_room_type):
+                    logger.info("skipping room type %s", room_type)
+                    continue
+                # if resuming and at logged room_type, search and propagate zoomstack and page number from logs inward
+                elif log_resuming and room_type == log_room_type:
+                    log_resuming = False
+                    self.__search_rectangle_logged( room_type, guests, bounding_box, rectangle_zoom, flag, [], log_zoomstack, log_page_number)
+                # if not resuming or have already done resume loop, continue with no resume info
+                else:
+                    self.__search_rectangle_logged( room_type, guests, bounding_box, rectangle_zoom, flag, [], [], 1)
+        except Exception:
+            logger.exception("Error")
+
     def __search_rectangle(self, room_type, guests, rectangle,
                            rectangle_zoom, flag):
         new_rooms = ws_search_rectangle(self, room_type, guests,
@@ -1167,6 +1308,8 @@ class Survey():
         if flag == FLAGS_PRINT:
             # for FLAGS_PRINT, fetch one page and print it
             sys.exit(0)
+
+
 
     def __search_loop_zipcodes(self, zipcodes, room_type, flag):
         try:
@@ -1213,6 +1356,118 @@ class Survey():
                         break
         except Exception:
             raise
+
+    def __search_rectangle_logged(self, room_type, guests, rectangle,
+                                    rectangle_zoom, flag, zoomstack, zoomresume, pageresume):
+        # zoomresume is a list of zoom quadrants to skip to when resuming a search from a log
+        # zoomstack is the list of zoom quadrants up the call stack, to be saved for resuming
+
+        logger.debug("search_rectangle_logged rectangle: %s, rectangle_zoom: %d, zoomstack: %s, zoomresume: %s, pageresume: %d", str(rectangle), rectangle_zoom, str(zoomstack), str(zoomresume), pageresume )
+
+        zoomresuming = (len(zoomresume) > 0)
+
+        new_rooms = 0
+        room_total = 0
+        page_number = 1
+
+        if (not zoomresuming):
+        #if  rectangle_zoom == SEARCH_MAX_RECTANGLE_ZOOM:
+            ## THIS CALLS A LOGGED VERSION TO RECORD ZOOMSTACK, guests, room_type IN A DB TABLE to resume from interruptions
+            ## have edited ws_search_rectangle_logged to return rooms not new rooms; I believe looking only for new rooms can lead to omissions
+            (new_rooms,room_total,page_number) = ws_search_rectangle_logged(self, room_type, guests,
+                                                    rectangle, rectangle_zoom, flag, zoomstack, pageresume )
+            logger.info(("{room_type} ({g} guests): zoom level {rect_zoom}: "
+                                     "{new_rooms} new rooms.").format(
+                                                                      room_type=room_type, g=str(guests),
+                                                                      rect_zoom=str(rectangle_zoom),
+                                                                      new_rooms=str(new_rooms)))
+
+        if ( zoomresuming or (room_total > 0 and rectangle_zoom < SEARCH_MAX_RECTANGLE_ZOOM and page_number > SEARCH_MAX_PAGES) ):
+        #elif rectangle_zoom < SEARCH_MAX_RECTANGLE_ZOOM:
+
+        # break the rectangle into quadrants
+            # (n_lat, e_lng, s_lat, w_lng).
+            (n_lat, e_lng, s_lat, w_lng) = rectangle
+            mid_lat = (n_lat + s_lat)/2.0
+            mid_lng = (e_lng + w_lng)/2.0
+            rectangle_zoom += 1
+        # overlap quadrants to ensure coverage at high zoom levels
+        # Airbnb max zoom (18) is about 0.004 on a side.
+            blur = SEARCH_RECTANGLE_EDGE_BLUR
+
+
+
+            i = 1
+            newzoomresume = []
+            pr = 1
+
+            if zoomresuming:
+                # if resuming, skip to appropriate zoom quadrant;
+                i = zoomresume[0]
+                # new resume list is tail of current one
+                newzoomresume = zoomresume[1:]
+                pr = pageresume
+
+
+
+            while i < 5:
+                if i == 1:
+                    quadrant = (n_lat + blur, e_lng - blur, mid_lat - blur, mid_lng + blur)
+                    ## SK TOCHECK: QUADRANT COORDS for all of these
+                    logging.debug("NE Quadrant: %s", str(quadrant))
+                    logging.debug("Quadrant size: {lat} by {lng}".format(
+                                                             lat=str(quadrant[0] - quadrant[2]),
+                                                             lng=str(abs(quadrant[1] - quadrant[3]))))
+
+                    newzoomstack = zoomstack + [1]
+                    #logging.debug("zs: %s, newzs: %s", str(zoomstack), str(newzoomstack))
+
+                    self.__search_rectangle_logged(room_type, guests,
+                                                quadrant, rectangle_zoom, flag, newzoomstack, newzoomresume, pr )
+
+                elif i == 2:
+
+                    quadrant = (n_lat + blur, mid_lng - blur, mid_lat - blur, w_lng + blur)
+                    logging.debug("NW Quadrant: %s", str(quadrant))
+                    logging.debug("Quadrant size: {lat} by {lng}".format(
+                                                                         lat=str(quadrant[0] - quadrant[2]),
+                                                                         lng=str(abs(quadrant[1] - quadrant[3]))))
+
+                    newzoomstack = zoomstack + [2]
+                    self.__search_rectangle_logged(room_type, guests,
+                                                   quadrant, rectangle_zoom, flag, newzoomstack, newzoomresume, pr )
+
+                elif i == 3:
+                    quadrant = (mid_lat + blur, e_lng - blur, s_lat - blur, mid_lng + blur)
+
+                    logging.debug("SE Quadrant: %s", str(quadrant))
+                    logging.debug("Quadrant size: {lat} by {lng}".format(
+                                                                         lat=str(quadrant[0] - quadrant[2]),
+                                                                         lng=str(abs(quadrant[1] - quadrant[3]))))
+
+                    newzoomstack = zoomstack + [3]
+                    self.__search_rectangle_logged(room_type, guests,
+                                                               quadrant, rectangle_zoom, flag, newzoomstack, newzoomresume, pr)
+
+                elif i == 4:
+                    quadrant = (mid_lat + blur, mid_lng - blur, s_lat - blur, w_lng + blur)
+                    logging.debug("SW Quadrant: %s", str(quadrant))
+                    logging.debug("Quadrant size: {lat} by {lng}".format(
+                                                                         lat=str(quadrant[0] - quadrant[2]),
+                                                                         lng=str(abs(quadrant[1] - quadrant[3]))))
+
+
+                    newzoomstack = zoomstack + [4]
+                    self.__search_rectangle_logged(room_type, guests,
+                                                               quadrant, rectangle_zoom, flag, newzoomstack, newzoomresume, pr )
+                # no matter what, we will only be resuming on first iteration of loop
+                newzoomresume = []
+                pr = 1
+                i+=1
+
+        if flag == FLAGS_PRINT:
+            # for FLAGS_PRINT, fetch one page and print it
+            sys.exit(0)
 
     def __search_loop_neighborhoods(self, neighborhoods, room_type, flag):
         """Loop over neighborhoods in a city. No return."""
@@ -1276,12 +1531,16 @@ class Survey():
             params["neighborhoods[]"] = neighborhood
             response = ws_request_with_repeats(URL_API_SEARCH_ROOT, params)
             # Airbnb update 2016-11-05: some responses contain no property_ids
-            # key: pick up the room_id from elsewhere
-            # (Could get more info)
-            json = response.json()
-            room_elements = []
-            for result in json["results_json"]["search_results"]:
-                room_elements.append(result["listing"]["id"])
+            if "property_ids" in response.json():
+                room_elements = response.json()["property_ids"]
+            else:
+                logger.info("No property_ids: breaking")
+                logger.debug(json.dumps(response.json(),
+                                        sort_keys=True,
+                                        indent=4,
+                                        separators=(',', ': '))
+                             )
+                return
             logger.debug("Found " + str(len(room_elements)) +
                          "new or existing rooms.")
 
@@ -1301,7 +1560,6 @@ class Survey():
                     room_id = int(room_element)
                     if room_id is not None:
                         listing = Listing(room_id, self.survey_id, room_type)
-                        # could add more data here
                         if flag == FLAGS_ADD:
                             listing.save(FLAGS_INSERT_NO_REPLACE)
                         elif flag == FLAGS_PRINT:
@@ -1804,9 +2062,127 @@ def ws_search_rectangle(survey, room_type, guests,
             if new_rooms >= truncate_criterion:
                 logger.info(("Found {new_rooms} new rooms. "
                              "Truncating search and zooming in").format(
-                             new_rooms=str(new_rooms)))
+                                                                        new_rooms=str(new_rooms)))
                 break
         return new_rooms
+    except UnicodeEncodeError:
+        logger.error("UnicodeEncodeError: set PYTHONIOENCODING=utf-8")
+        # if sys.version_info >= (3,):
+        #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
+        # else:
+        #    logger.info(s.encode('utf8'))
+        # unhandled at the moment
+    except Exception:
+        logger.exception("Exception in get_search_page_info_rectangle")
+        raise
+
+def ws_search_rectangle_logged(survey, room_type, guests,
+                        rectangle, rectangle_zoom, flag, zoomstack, resumepage):
+    """
+        rectangle is (n_lat, e_lng, s_lat, w_lng)
+        returns number of *new* rooms
+    """
+
+    try:
+        logger.info("-" * 70)
+        logger.info(("Searching '{room_type}' ({guests} guests), "
+                     "zoom level {zoom}").format(room_type=room_type,
+                                                 guests=str(guests),
+                                                 zoom=str(rectangle_zoom)))
+        new_rooms = 0
+        room_total = 0
+        if rectangle_zoom >= (SEARCH_MAX_RECTANGLE_ZOOM - 1):
+            truncate_criterion = 999999
+        else:
+            truncate_criterion = SEARCH_RECTANGLE_TRUNCATE_CRITERION
+
+        # jump to resumepage - for resume after logging (otherwise is 1)
+        page_number = resumepage
+        if page_number > 1:
+            logger.info("jumping to page %d", page_number)
+
+        while page_number <= SEARCH_MAX_PAGES:
+            room_count = 0
+            logger.info("Page " + str(page_number) + "...")
+            params = {}
+            params["guests"] = str(guests)
+            params["page"] = str(page_number)
+            params["source"] = "filter"
+            params["room_types[]"] = room_type
+            params["sw_lat"] = str(rectangle[2])
+            params["sw_lng"] = str(rectangle[3])
+            params["ne_lat"] = str(rectangle[0])
+            params["ne_lng"] = str(rectangle[1])
+            # testing -- SK added to force airbnb to only return results within rectangle
+            params["search_by_map"] = str(True)
+            response = ws_request_with_repeats(URL_API_SEARCH_ROOT, params)
+            # Airbnb update 2016-11-05: some responses contain no property_ids
+            # key: pick up the room_id from elsewhere
+            # (Could get more info)
+            json = response.json()
+            room_elements = []
+            for result in json["results_json"]["search_results"]:
+                json_listing = result["listing"]
+                json_pricing = result["pricing_quote"]
+                # logger.info("Found " + str(room_count) + " rooms")
+                room_id = int(json_listing["id"])
+                if room_id is not None:
+                    room_count += 1
+                    room_total += 1
+                    listing = Listing(room_id, survey.survey_id, room_type)
+                    # add all info available in json
+                    # some not here -- bathroom, city, country, minstay, neighbourhood -- since I haven't seen them in the json.
+                    #    maybe just not reported in my searches? add later?
+                    # TBD: Error handling for missing json items?
+                    listing.host_id = json_listing["primary_host"]["id"]
+                    listing.address = json_listing["public_address"]
+                    listing.reviews = json_listing["reviews_count"]
+                    listing.overall_satisfaction = json_listing["star_rating"]
+                    listing.accommodates = json_listing["person_capacity"]
+                    listing.bedrooms = json_listing["bedrooms"]
+                    listing.price = json_pricing["rate"]["amount"]
+                    listing.latitude = json_listing["lat"]
+                    listing.longitude = json_listing["lng"]
+                    # test that listing is in rectangle
+                    if(listing.latitude > rectangle[0] or listing.latitude < rectangle[2] or listing.longitude < rectangle[3] or listing.longitude > rectangle[1] ):
+                        logger.debug("Listing coords (%f,%f) outside of rect %s !!!", listing.latitude, listing.longitude, str(rectangle))
+
+                    listing.coworker_hosted = json_listing["coworker_hosted"]
+                    listing.extra_host_languages = json_listing["extra_host_languages"]
+                    listing.name = json_listing["name"]
+                    listing.property_type = json_listing["property_type"]
+                    listing.currency = json_pricing["rate"]["currency"]
+                    listing.rate_type = json_pricing["rate_type"]
+                    if flag == FLAGS_ADD:
+                        if listing.save(FLAGS_INSERT_NO_REPLACE):
+                            new_rooms += 1
+                    elif flag == FLAGS_PRINT:
+                        print(room_type, listing.room_id)
+            if flag == FLAGS_PRINT:
+                # for FLAGS_PRINT, fetch one page and print it
+                sys.exit(0)
+
+
+
+            page_number += 1
+            # log progress on this survey in DB - survey id, room_type, zoomstack, page_number are the important ones
+            survey.log_progress_bounding_box( room_type, guests, zoomstack, page_number, room_count )
+
+            if room_count < SEARCH_LISTINGS_ON_FULL_PAGE:
+                logger.debug("Final page of listings for this search")
+                break
+
+            if new_rooms >= truncate_criterion:
+                logger.info(("Found {new_rooms} new rooms "
+                             "Truncating search and zooming in").format(
+                                                                    new_rooms=str(new_rooms)))
+                break
+            if page_number > SEARCH_MAX_PAGES:
+                logger.debug("Reached MAX_PAGES on this search!")
+
+        logger.debug("Found %d new_rooms of %d room_total", new_rooms, room_total)
+        return (new_rooms,room_total,page_number)
+        #return new_rooms
     except UnicodeEncodeError:
         logger.error("UnicodeEncodeError: set PYTHONIOENCODING=utf-8")
         # if sys.version_info >= (3,):
