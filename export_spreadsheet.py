@@ -8,12 +8,12 @@ import sys
 import configparser
 import os
 
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 # Set up logging
 LOG_FORMAT = '%(levelname)-8s%(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
-# START_DATE = '2013-05-02'
-START_DATE = '2016-08-31'
+START_DATE = '2013-05-02'
+# START_DATE = '2016-08-31'
 
 
 def init():
