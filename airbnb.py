@@ -1814,7 +1814,7 @@ def ws_get_city_info(city, flag):
             citylist = tree.xpath(
                 "//input[@name='location']/@value")
             neighborhoods = tree.xpath(
-                "//input[@name='neighborhood']/@value")
+                "//input[contains(@id, 'filter-option-neighborhoods')]/@value")
             if flag == FLAGS_PRINT:
                 print("\n", citylist[0])
                 print("Neighborhoods:")
