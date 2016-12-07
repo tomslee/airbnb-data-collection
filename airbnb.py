@@ -2010,7 +2010,7 @@ def ws_search_rectangle(survey, room_type, guests,
                      "zoom level {zoom}").format(room_type=room_type,
                                                  guests=str(guests),
                                                  zoom=str(rectangle_zoom)))
-        logger.debug("Rectangle bounded by N={n:+.5f}, E={e:+.5f}, S={s:+.5f}, W={w:+.5f}".format(
+        logger.debug("Rectangle: N={n:+.5f}, E={e:+.5f}, S={s:+.5f}, W={w:+.5f}".format(
            n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
         )
         new_rooms = 0
@@ -2041,8 +2041,10 @@ def ws_search_rectangle(survey, room_type, guests,
             room_count = len(room_elements)
             if room_count > 0:
                 logger.info("Found " + str(room_count) + " rooms (new and old)")
-                for room_element in room_elements:
-                    room_id = int(room_element)
+                for result in json["results_json"]["search_results"]:
+                    room_id = int(result["listing"]["id"])
+                    json_listing = result["listing"]
+                    json_pricing = result["pricing_quote"]
                     if room_id is not None:
                         listing = Listing(room_id, survey.survey_id, room_type)
                         # add all info available in json. Some not here --
