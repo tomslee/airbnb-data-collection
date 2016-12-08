@@ -1273,14 +1273,19 @@ class Survey():
         this method prints output and sets up new rectangles, if necessary,
         for another round of searching.
         """
-        new_rooms = ws_search_rectangle(self, room_type, guests,
-                                        rectangle, rectangle_zoom, flag)
+        (new_rooms, page_number) = ws_search_rectangle(self, room_type, guests,
+                                                       rectangle, rectangle_zoom, flag)
         logger.info(("{room_type} ({g} guests): zoom level {rect_zoom}: "
-                     "{new_rooms} new rooms.").format(
+                     "{new_rooms} new rooms, {page_number} pages").format(
                          room_type=room_type, g=str(guests),
                          rect_zoom=str(rectangle_zoom),
-                         new_rooms=str(new_rooms)))
-        if new_rooms > 0 and rectangle_zoom < SEARCH_MAX_RECTANGLE_ZOOM:
+                         new_rooms=str(new_rooms),
+                     page_number=str(page_number)))
+        if ((new_rooms > 0 or page_number == SEARCH_MAX_PAGES) and
+            rectangle_zoom < SEARCH_MAX_RECTANGLE_ZOOM):
+            # zoom in if there are new rooms, or (to deal with occasional cases) if
+            # the search returned a full set of SEARCH_MAX_PAGES pages even if no rooms
+            # were new.
             # break the rectangle into quadrants
             # (n_lat, e_lng, s_lat, w_lng).
             (n_lat, e_lng, s_lat, w_lng) = rectangle
@@ -1334,7 +1339,7 @@ class Survey():
                 max_guests = SEARCH_MAX_GUESTS
             for guests in range(1, max_guests):
                 logger.info("Searching for %(g)i guests", {"g": guests})
-                for page_number in range(1, SEARCH_MAX_PAGES):
+                for page_number in range(1, SEARCH_MAX_PAGES + 1):
                     if flag != FLAGS_PRINT:
                         # this efficiency check can be implemented later
                         count = page_has_been_retrieved(
@@ -1478,7 +1483,7 @@ class Survey():
                 max_guests = SEARCH_MAX_GUESTS
             for guests in range(1, max_guests):
                 logger.debug("Searching for %(g)i guests", {"g": guests})
-                for page_number in range(1, SEARCH_MAX_PAGES):
+                for page_number in range(1, SEARCH_MAX_PAGES + 1):
                     if flag != FLAGS_PRINT:
                         count = page_has_been_retrieved(
                             self.survey_id, room_type,
@@ -2002,7 +2007,7 @@ def ws_search_rectangle(survey, room_type, guests,
                         rectangle, rectangle_zoom, flag):
     """
         rectangle is (n_lat, e_lng, s_lat, w_lng)
-        returns number of *new* rooms
+        returns number of *new* rooms and number of pages tested
     """
     try:
         logger.info("-" * 70)
@@ -2018,7 +2023,7 @@ def ws_search_rectangle(survey, room_type, guests,
             truncate_criterion = 999999
         else:
             truncate_criterion = SEARCH_RECTANGLE_TRUNCATE_CRITERION
-        for page_number in range(1, SEARCH_MAX_PAGES):
+        for page_number in range(1, SEARCH_MAX_PAGES + 1):
             logger.info("Page " + str(page_number) + "...")
             params = {}
             params["guests"] = str(guests)
@@ -2091,7 +2096,7 @@ def ws_search_rectangle(survey, room_type, guests,
                              "Truncating search and zooming in").format(
                                                                         new_rooms=str(new_rooms)))
                 break
-        return new_rooms
+        return (new_rooms, page_number)
     except UnicodeEncodeError:
         logger.error("UnicodeEncodeError: set PYTHONIOENCODING=utf-8")
         # if sys.version_info >= (3,):
