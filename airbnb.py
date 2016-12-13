@@ -22,7 +22,7 @@ import time
 import random
 import requests
 from lxml import html
-from datetime import date
+from datetime import date, datetime
 import psycopg2
 import psycopg2.errorcodes
 import webbrowser
@@ -96,18 +96,13 @@ console_handler.setLevel(LOG_LEVEL)
 console_handler.setFormatter(ch_formatter)
 logger.addHandler(console_handler)
 
-fl_formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s%(message)s')
-filelog_handler = logging.FileHandler("run.log", encoding="utf-8")
-filelog_handler.setLevel(LOG_LEVEL)
-filelog_handler.setFormatter(fl_formatter)
-logger.addHandler(filelog_handler)
-
 
 def init():
     """ Read the configuration file <username>.config to set up the run
     """
     try:
         config = configparser.ConfigParser()
+
         # look for username.config on both Windows (USERNAME) and Linux (USER)
         if os.name == "nt":
             username = os.environ['USERNAME']
@@ -118,6 +113,7 @@ def init():
             logging.error("Configuration file " + config_file + " not found.")
             sys.exit()
         config.read(config_file)
+
         # database
         global DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
         DB_HOST = config["DATABASE"]["db_host"] if ("db_host" in config["DATABASE"]) else None
@@ -125,6 +121,7 @@ def init():
         DB_NAME = config["DATABASE"]["db_name"]
         DB_USER = config["DATABASE"]["db_user"]
         DB_PASSWORD = config["DATABASE"]["db_password"]
+
         # network
         global USER_AGENT_LIST, HTTP_PROXY_LIST, MAX_CONNECTION_ATTEMPTS
         global REQUEST_SLEEP, HTTP_TIMEOUT
@@ -147,6 +144,7 @@ def init():
             int(config["NETWORK"]["max_connection_attempts"])
         REQUEST_SLEEP = float(config["NETWORK"]["request_sleep"])
         HTTP_TIMEOUT = float(config["NETWORK"]["http_timeout"])
+
         # survey
         global FILL_MAX_ROOM_COUNT, ROOM_ID_UPPER_BOUND, SEARCH_MAX_PAGES
         global SEARCH_MAX_GUESTS, SEARCH_MAX_RECTANGLE_ZOOM, RE_INIT_SLEEP_TIME
@@ -157,6 +155,20 @@ def init():
         SEARCH_MAX_RECTANGLE_ZOOM = int(
             config["SURVEY"]["search_max_rectangle_zoom"])
         RE_INIT_SLEEP_TIME = float(config["SURVEY"]["re_init_sleep_time"])
+
+        # logging: set log file name, format, and level
+        filelog_formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s%(message)s')
+        logfile = str(datetime.now())
+        logfile = logfile.replace(":", "_")
+        logfile = logfile.replace(" ", "_")
+        logfile = logfile.replace(".", "_")
+        logfile += ".log"
+        filelog_handler = logging.FileHandler(logfile, encoding="utf-8")
+        filelog_handler.setLevel(LOG_LEVEL)
+        filelog_handler.setFormatter(filelog_formatter)
+        logger.addHandler(filelog_handler)
+        logger.debug("Logging to " + logfile)
+
     except Exception:
         logger.exception("Failed to read config file properly")
         raise
