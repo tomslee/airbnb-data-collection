@@ -1051,17 +1051,28 @@ class Survey():
                 return
 
             logger.info("Bounding box: " + str(bounding_box))
+            price_increments = [0, 40, 60, 80, 100, 120,
+                                140, 180, 200,
+                                300, 500,
+                                700, 1000, 1500, 10000]
             for room_type in ("Private room", "Entire home/apt", "Shared room"):
                 if room_type in ("Private room", "Shared room"):
                     max_guests = 4
                 else:
                     max_guests = self.config.SEARCH_MAX_GUESTS
-                    logger.debug("Max guests " + str(max_guests))
                 for guests in range(1, max_guests):
-                    rectangle_zoom = 0
-                    self.__search_rectangle(
-                        room_type, guests, bounding_box,
-                        rectangle_zoom, flag)
+                    for i in range(len(price_increments) - 1):
+                        price_range = [price_increments[i], price_increments[i+1]]
+                        # TS: move this max_price thing out of the loop
+                        max_price = {"Private room": 500,
+                                     "Entire home/apt": 10000,
+                                     "Shared room": 500}
+                        rectangle_zoom = 0
+                        if price_range[1] > max_price[room_type]:
+                            continue
+                        self.__search_rectangle(
+                            room_type, guests, price_range, bounding_box,
+                            rectangle_zoom, flag)
         except Exception:
             logger.exception("Error")
 
@@ -1147,7 +1158,7 @@ class Survey():
         except Exception:
             logger.exception("Error")
 
-    def __search_rectangle(self, room_type, guests, rectangle,
+    def __search_rectangle(self, room_type, guests, price_range, rectangle,
                            rectangle_zoom, flag):
         """
         Recursive function to search for listings inside a rectangle.
@@ -1155,9 +1166,9 @@ class Survey():
         this method prints output and sets up new rectangles, if necessary,
         for another round of searching.
         """
-        (new_rooms, page_number) = ws_search_rectangle(self, room_type, guests,
+        (new_rooms, page_number) = ws_search_rectangle(self, room_type, guests, price_range,
                                                        rectangle, rectangle_zoom, flag)
-        logger.info(("{room_type} ({g} guests): zoom level {rect_zoom}: "
+        logger.info(("{room_type} ({g} guests): zoom {rect_zoom}: "
                      "{new_rooms} new rooms, {page_number} pages").format(
                          room_type=room_type, g=str(guests),
                          rect_zoom=str(rectangle_zoom),
@@ -1181,19 +1192,19 @@ class Survey():
                          format(blur=blur, midlat=mid_lat, midlng=mid_lng))
             quadrant = (n_lat + blur, e_lng + blur,
                         mid_lat - blur, mid_lng - blur)
-            new_rooms = self.__search_rectangle(room_type, guests,
+            new_rooms = self.__search_rectangle(room_type, guests, price_range,
                                                 quadrant, rectangle_zoom, flag)
             quadrant = (n_lat + blur, mid_lng + blur,
                         mid_lat - blur, w_lng - blur)
-            new_rooms = self.__search_rectangle(room_type, guests,
+            new_rooms = self.__search_rectangle(room_type, guests, price_range,
                                                 quadrant, rectangle_zoom, flag)
             quadrant = (mid_lat + blur, e_lng + blur,
                         s_lat - blur, mid_lng - blur)
-            new_rooms = self.__search_rectangle(room_type, guests,
+            new_rooms = self.__search_rectangle(room_type, guests, price_range,
                                                 quadrant, rectangle_zoom, flag)
             quadrant = (mid_lat + blur, mid_lng + blur,
                         s_lat - blur, w_lng - blur)
-            new_rooms = self.__search_rectangle(room_type, guests,
+            new_rooms = self.__search_rectangle(room_type, guests, price_range,
                                                 quadrant, rectangle_zoom, flag)
 
         if flag == FLAGS_PRINT:
@@ -1269,7 +1280,7 @@ class Survey():
             (new_rooms, room_total, page_number) = ws_search_rectangle_logged(self, room_type, guests,
                                                                               rectangle, rectangle_zoom,
                                                                               flag, zoomstack, pageresume)
-            logger.info(("{room_type} ({g} guests): zoom level {rect_zoom}: "
+            logger.info(("{room_type} ({g} guests): zoom {rect_zoom}: "
                          "{new_rooms} new rooms.").format(room_type=room_type, g=str(guests),
                                                           rect_zoom=str(rectangle_zoom),
                                                           new_rooms=str(new_rooms)))
@@ -1848,7 +1859,7 @@ def ws_request(config, url, params=None):
                 'http': http_proxy,
                 'https': http_proxy,
             }
-            logger.info("Requesting page through proxy " + http_proxy)
+            logger.debug("Requesting page through proxy " + http_proxy)
         else:
             proxies = None
 
@@ -1905,7 +1916,7 @@ def ws_request(config, url, params=None):
         return None
 
 
-def ws_search_rectangle(survey, room_type, guests,
+def ws_search_rectangle(survey, room_type, guests, price_range,
                         rectangle, rectangle_zoom, flag):
     """
         rectangle is (n_lat, e_lng, s_lat, w_lng)
@@ -1913,9 +1924,11 @@ def ws_search_rectangle(survey, room_type, guests,
     """
     try:
         logger.info("-" * 70)
-        logger.info(("Searching '{room_type}' ({guests} guests), "
-                     "zoom level {zoom}").format(room_type=room_type,
+        logger.info(("Searching '{room_type}' ({guests} guests, prices in [{p1}, {p2}]), "
+                     "zoom {zoom}").format(room_type=room_type,
                                                  guests=str(guests),
+                                                 p1=str(price_range[0]),
+                                                 p2=str(price_range[1]),
                                                  zoom=str(rectangle_zoom)))
         logger.debug("Rectangle: N={n:+.5f}, E={e:+.5f}, S={s:+.5f}, W={w:+.5f}".format(
            n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
@@ -1938,6 +1951,8 @@ def ws_search_rectangle(survey, room_type, guests,
             params["ne_lng"] = str(rectangle[1])
             # testing -- SK added to force airbnb to only return results within rectangle
             params["search_by_map"] = str(True)
+            params["price_min"] = str(price_range[0])
+            params["price_max"] = str(price_range[1])
             response = ws_request_with_repeats(survey.config, URL_API_SEARCH_ROOT, params)
             if response is None:
                 return 0
@@ -2023,7 +2038,7 @@ def ws_search_rectangle_logged(survey, room_type, guests,
     try:
         logger.info("-" * 70)
         logger.info(("Searching '{room_type}' ({guests} guests), "
-                     "zoom level {zoom}").format(room_type=room_type,
+                     "zoom {zoom}").format(room_type=room_type,
                                                  guests=str(guests),
                                                  zoom=str(rectangle_zoom)))
         new_rooms = 0
