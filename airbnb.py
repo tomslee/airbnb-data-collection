@@ -1166,50 +1166,65 @@ class Survey():
         this method prints output and sets up new rectangles, if necessary,
         for another round of searching.
         """
-        (new_rooms, page_number) = ws_search_rectangle(self, room_type, guests, price_range,
-                                                       rectangle, rectangle_zoom, flag)
-        logger.info(("{room_type} ({g} guests): zoom {rect_zoom}: "
-                     "{new_rooms} new rooms, {page_number} pages").format(
-                         room_type=room_type, g=str(guests),
-                         rect_zoom=str(rectangle_zoom),
-                         new_rooms=str(new_rooms),
-                         page_number=str(page_number)))
-        zoomable = True if rectangle_zoom < self.config.SEARCH_MAX_RECTANGLE_ZOOM else False
-        if (new_rooms > 0 or page_number == self.config.SEARCH_MAX_PAGES) and zoomable:
+        try:
+            (new_rooms, page_number) = ws_search_rectangle(self, room_type, guests, price_range,
+                                                           rectangle, rectangle_zoom, flag)
+            logger.info(("{room_type} ({g} guests): zoom {rect_zoom}: "
+                         "{new_rooms} new rooms, {page_number} pages").format(
+                             room_type=room_type, g=str(guests),
+                             rect_zoom=str(rectangle_zoom),
+                             new_rooms=str(new_rooms),
+                             page_number=str(page_number)))
+            # The max zoom is set in config, but decrease it by one for each guest
+            # so that high guest counts don't zoom in (which turns out to generate
+            # very few new rooms but take a lot of time)
+            if rectangle_zoom < max(1, (self.config.SEARCH_MAX_RECTANGLE_ZOOM - 2 *(guests - 1))):
+                zoomable = True
+            else:
+                zoomable = False
+            # TS: temporary experiment
+            # if (new_rooms > 0 or page_number == self.config.SEARCH_MAX_PAGES) and zoomable:
             # zoom in if there are new rooms, or (to deal with occasional cases) if
             # the search returned a full set of SEARCH_MAX_PAGES pages even if no rooms
             # were new.
-            # break the rectangle into quadrants
-            # (n_lat, e_lng, s_lat, w_lng).
-            (n_lat, e_lng, s_lat, w_lng) = rectangle
-            mid_lat = (n_lat + s_lat)/2.0
-            mid_lng = (e_lng + w_lng)/2.0
-            rectangle_zoom += 1
-            # overlap quadrants to ensure coverage at high zoom levels
-            # Airbnb max zoom (18) is about 0.004 on a side.
-            blur = abs(n_lat - s_lat) * SEARCH_RECTANGLE_EDGE_BLUR
-            logger.debug("-> mid_lat={midlat:+.5f}, midlng={midlng:+.5f}, blur = {blur:+.5f}".
-                         format(blur=blur, midlat=mid_lat, midlng=mid_lng))
-            quadrant = (n_lat + blur, e_lng + blur,
-                        mid_lat - blur, mid_lng - blur)
-            new_rooms = self.__search_rectangle(room_type, guests, price_range,
-                                                quadrant, rectangle_zoom, flag)
-            quadrant = (n_lat + blur, mid_lng + blur,
-                        mid_lat - blur, w_lng - blur)
-            new_rooms = self.__search_rectangle(room_type, guests, price_range,
-                                                quadrant, rectangle_zoom, flag)
-            quadrant = (mid_lat + blur, e_lng + blur,
-                        s_lat - blur, mid_lng - blur)
-            new_rooms = self.__search_rectangle(room_type, guests, price_range,
-                                                quadrant, rectangle_zoom, flag)
-            quadrant = (mid_lat + blur, mid_lng + blur,
-                        s_lat - blur, w_lng - blur)
-            new_rooms = self.__search_rectangle(room_type, guests, price_range,
-                                                quadrant, rectangle_zoom, flag)
-
-        if flag == FLAGS_PRINT:
-            # for FLAGS_PRINT, fetch one page and print it
-            sys.exit(0)
+            if page_number == self.config.SEARCH_MAX_PAGES and zoomable:
+                # break the rectangle into quadrants
+                # (n_lat, e_lng, s_lat, w_lng).
+                (n_lat, e_lng, s_lat, w_lng) = rectangle
+                mid_lat = (n_lat + s_lat)/2.0
+                mid_lng = (e_lng + w_lng)/2.0
+                rectangle_zoom += 1
+                # overlap quadrants to ensure coverage at high zoom levels
+                # Airbnb max zoom (18) is about 0.004 on a side.
+                blur = abs(n_lat - s_lat) * SEARCH_RECTANGLE_EDGE_BLUR
+                logger.debug("-> mid_lat={midlat:+.5f}, midlng={midlng:+.5f}, blur = {blur:+.5f}".
+                             format(blur=blur, midlat=mid_lat, midlng=mid_lng))
+                quadrant = (n_lat + blur, e_lng + blur,
+                            mid_lat - blur, mid_lng - blur)
+                new_rooms = self.__search_rectangle(room_type, guests, price_range,
+                                                    quadrant, rectangle_zoom, flag)
+                quadrant = (n_lat + blur, mid_lng + blur,
+                            mid_lat - blur, w_lng - blur)
+                new_rooms = self.__search_rectangle(room_type, guests, price_range,
+                                                    quadrant, rectangle_zoom, flag)
+                quadrant = (mid_lat + blur, e_lng + blur,
+                            s_lat - blur, mid_lng - blur)
+                new_rooms = self.__search_rectangle(room_type, guests, price_range,
+                                                    quadrant, rectangle_zoom, flag)
+                quadrant = (mid_lat + blur, mid_lng + blur,
+                            s_lat - blur, w_lng - blur)
+                new_rooms = self.__search_rectangle(room_type, guests, price_range,
+                                                    quadrant, rectangle_zoom, flag)
+            if flag == FLAGS_PRINT:
+                # for FLAGS_PRINT, fetch one page and print it
+                sys.exit(0)
+        except TypeError as te:
+            logger.error("TypeError in __search_rectangle")
+            logger.error(te.args)
+            raise
+        except:
+            logger.error("Error in __search_rectangle")
+            raise
 
     def __search_loop_zipcodes(self, zipcodes, room_type, flag):
         try:
@@ -2004,9 +2019,10 @@ def ws_search_rectangle(survey, room_type, guests, price_range,
             if flag == FLAGS_PRINT:
                 # for FLAGS_PRINT, fetch one page and print it
                 sys.exit(0)
-            if new_rooms > 0 and rectangle_zoom < survey.config.SEARCH_MAX_RECTANGLE_ZOOM:
-                logger.info("Found new listings: zooming in...")
-                break
+                # TS: commenting out the immediate zoom for now
+            # if new_rooms > 0 and rectangle_zoom < survey.config.SEARCH_MAX_RECTANGLE_ZOOM:
+                # logger.info("Found new listings: zooming in...")
+                # break
             if room_count < SEARCH_LISTINGS_ON_FULL_PAGE:
                 logger.debug("Final page of listings for this search")
                 break
