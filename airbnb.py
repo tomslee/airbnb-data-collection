@@ -2130,18 +2130,30 @@ def ws_get_search_page_info_zipcode(survey, room_type,
         logger.info("-" * 70)
         logger.info(room_type + ", zipcode " + str(zipcode) + ", " +
                     str(guests) + " guests, " + "page " + str(page_number))
-        (url, params) = search_page_url(zipcode, guests,
-                                        None, room_type, page_number)
-        response = ws_request_with_repeats(survey.config, url, params)
-        page = response.text
-        if page is None:
-            return 0
-        tree = html.fromstring(page)
-        room_elements = tree.xpath(
-            "//div[@class='listing']/@data-id"
-        )
-        logger.debug("Found " + str(len(room_elements)) + " rooms.")
-        room_count = len(room_elements)
+        room_count = 0
+        new_rooms = 0
+        params = {}
+        params["guests"] = str(guests)
+        params["page"] = str(page_number)
+        params["source"] = "filter"
+        params["location"] = zipcode
+        params["room_types[]"] = room_type
+        response = ws_request_with_repeats(survey.config, URL_API_SEARCH_ROOT, params)
+        json = response.json()
+        for result in json["results_json"]["search_results"]:
+            room_id = int(result["listing"]["id"])
+            if room_id is not None:
+                room_count += 1
+                listing = survey.listing_from_search_page_json(result, survey, room_id, room_type)
+                if listing is None:
+                    continue
+                if listing.host_id is not None:
+                    listing.deleted = 0
+                    if flag == FLAGS_ADD:
+                        if listing.save(FLAGS_INSERT_NO_REPLACE):
+                            new_rooms += 1
+                    elif flag == FLAGS_PRINT:
+                        print(room_type, listing.room_id)
         if room_count > 0:
             has_rooms = 1
         else:
@@ -2149,15 +2161,6 @@ def ws_get_search_page_info_zipcode(survey, room_type,
         if flag == FLAGS_ADD:
             survey.log_progress(room_type, zipcode,
                                 guests, page_number, has_rooms)
-        if room_count > 0:
-            for room_element in room_elements:
-                room_id = int(room_element)
-                if room_id is not None:
-                    listing = Listing(room_id, survey.survey_id)
-                    if flag == FLAGS_ADD:
-                        listing.save(FLAGS_INSERT_NO_REPLACE)
-                    elif flag == FLAGS_PRINT:
-                        print(room_type, listing.room_id)
         else:
             logger.info("No rooms found")
         return room_count
@@ -2270,18 +2273,6 @@ def page_has_been_retrieved(config, survey_id, room_type, neighborhood_or_zipcod
         cur.close()
         return has_rooms
 
-
-def search_page_url(search_string, guests, neighborhood, room_type,
-                    page_number):
-    # search_string is either a search area name or a zipcode
-    url = URL_SEARCH_ROOT + search_string
-    params = {}
-    params["guests"] = str(guests)
-    if neighborhood is not None:
-        params["neighborhoods[]"] = neighborhood
-    params["room_types[]"] = room_type
-    params["page"] = str(page_number)
-    return (url, params)
 
 
 def parse_args():

@@ -45,7 +45,18 @@ This makes an entry in the survey table, and should give you a survey_id value.
 
 ### Running a survey 
 
-There are several kinds of survey supported. For some cities, Airbnb provides a list of "neighbourhoods", and one search loops over each neighbourhood in turn. If the city does not have neighbourhoods defined by Airbnb, this search will probably underestimate the number of listings by a large amount.
+There are three ways to run surveys:
+- by neighbourhood
+- by bounding box
+- by zipcode
+
+Of these, the bounding box is the one I use most and so is most thoroughly tested. The neighbourhood one is the easiest to set up, so you may want to try that first, but be warned that if Airbnb has not assigned neighbourhoods to the city you are searching, the results can be very incomplete.
+
+For users of earlier releases: Thanks to contributions from Sam Kaufman the searches now save information on the search step, and there is no need to run an "-f" step after running a -s or -sb or -sz search: the information about each room is collected from the search pages.
+
+#### Neighbourhood search
+
+For some cities, Airbnb provides a list of "neighbourhoods", and one search loops over each neighbourhood in turn. If the city does not have neighbourhoods defined by Airbnb, this search will probably underestimate the number of listings by a large amount.
 
 Run a neighbourhood-by-neighbourhood search:
 
@@ -53,20 +64,31 @@ Run a neighbourhood-by-neighbourhood search:
 
 This can take a long time (hours). Like many sites, Airbnb turns away requests (HTTP error 503) if you make too many in a short time, so the script tries waiting regularly. If you have to stop in the middle, that's OK -- running it again picks up where it left off (after a bit of a pause).
 
-The search collects room_id values from the Airbnb search pages for a city. The next step is to visit each room page and get the details.
+#### Zipcode search
 
-To fill in the room details:
+To run a search by zipcode (see below for setup):
 
-    python airbnb.py -f survey_id
+    python airbnb.py -sz zipcode
 
-Again, this can take a long time (days for big cities). But again, if you have to cancel in the middle it's not a big deal; just run the command again to pick up. You can even run multiple instances of the "-f" step at the same time to speed it up
+Search by zip code requires a set of zip codes for a city, stored in a separate table (which is not currently included). The table definition is 
+as follows:
+
+```
+CREATE TABLE zipcode (
+  zipcode character varying(10) NOT NULL,
+  search_area_id integer,
+  CONSTRAINT z PRIMARY KEY (zipcode),
+  CONSTRAINT zipcode_search_area_id_fkey 
+    FOREIGN KEY (search_area_id) 
+    REFERENCES search_area (search_area_id)
+)
+```
+
+#### Bounding box search
 
 To run a search by bounding box:
 
     python airbnb.py -sb survey_id
-
-The bounding box search is the one I use for most cases (as of November 2016).
-Thanks to contributions from Sam Kaufman it now saves information on the search step, and there is no need to run an "-f" step afterwards.
 
 Search by bounding box does a recursive geographical search, breaking a bounding box that surrounds a city into smaller pieces, and continuing to search while new listings are identified. This currently relies on adding the bounding box to the search_area table manually. A bounding box for a city can be found by entering the city at the following page:
 
@@ -85,19 +107,6 @@ WHERE search_area_id = NNN
 
 Ideally I'd like to automate this process. I am still experimenting with a combination of search_max_pages and search_max_rectangle_zoom (in the user.config file) that picks up all the listings in a reasonably efficient manner. It seems that for a city, search_max_pages=20 and search_max_rectangle_zoom=6 works well.
 
-- Search by zip code requires a set of zip codes for a city, stored in a separate table (which is not currently included). The table definition is 
-as follows:
-
-```
-CREATE TABLE zipcode (
-  zipcode character varying(10) NOT NULL,
-  search_area_id integer,
-  CONSTRAINT z PRIMARY KEY (zipcode),
-  CONSTRAINT zipcode_search_area_id_fkey 
-    FOREIGN KEY (search_area_id) 
-    REFERENCES search_area (search_area_id)
-)
-```
 
 # Results
 
