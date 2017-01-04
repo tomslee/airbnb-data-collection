@@ -34,7 +34,6 @@ from airbnb_config import ABConfig
 # ============================================================================
 
 # Survey characteristics: filled in from <username>.config
-SEARCH_RECTANGLE_TRUNCATE_CRITERION = 1000
 SEARCH_RECTANGLE_EDGE_BLUR = 0.1
 SEARCH_BY_NEIGHBORHOOD = 'neighborhood'  # default
 SEARCH_BY_ZIPCODE = 'zipcode'
@@ -899,7 +898,7 @@ class Survey():
                 # for some cities (eg Havana) the neighbourhood information
                 # is incomplete, and an additional search with no
                 # neighbourhood is useful
-                neighborhoods = [None] + neighborhoods
+                neighborhoods = neighborhoods + [None]
                 for room_type in ("Private room",
                                   "Entire home/apt", "Shared room",):
                     logger.debug(
@@ -1409,6 +1408,13 @@ class Survey():
                             pass
                     room_count = self.__search_neighborhood_page(
                         room_type, neighborhood, guests, page_number, flag)
+                    logger.info(("{room_type} ({g} guests): neighbourhood {neighborhood}: "
+                         "{room_count} rooms, {page_number} pages").format(
+                             room_type=room_type, g=str(guests),
+                             neighborhood = neighborhood,
+                             room_count = room_count,
+                             page_number=str(page_number)))
+
                     if flag == FLAGS_PRINT:
                         # for FLAGS_PRINT, fetch one page and print it
                         sys.exit(0)
@@ -1420,7 +1426,6 @@ class Survey():
 
     def __search_neighborhood_page(self, room_type, neighborhood, guests, page_number, flag):
         try:
-            new_rooms = 0
             logger.info("-" * 70)
             logger.info(
                 "Survey " + str(self.survey_id) + " (" +
@@ -1429,6 +1434,8 @@ class Survey():
                 str(neighborhood) + ", " +
                 str(guests) + " guests, " +
                 "page " + str(page_number))
+            new_rooms = 0
+            room_count = 0
             params = {}
             params["page"] = str(page_number)
             params["source"] = "filter"
@@ -1436,53 +1443,21 @@ class Survey():
             params["room_types[]"] = room_type
             params["neighborhoods[]"] = neighborhood
             response = ws_request_with_repeats(self.config, URL_API_SEARCH_ROOT, params)
-            # Airbnb update 2016-11-05: some responses contain no property_ids
-            if response is None:
-                return 0
-            room_elements = []
+            json = response.json()
             for result in json["results_json"]["search_results"]:
-                room_elements.append(result["listing"]["id"])
-                json_listing = result["listing"]
-                json_pricing = result["pricing_quote"]
-            room_count = len(room_elements)
-            if room_count > 0:
-                logger.info("Found " + str(room_count) + " rooms (new and old)")
-                for result in json["results_json"]["search_results"]:
-                    room_id = int(result["listing"]["id"])
-                    json_listing = result["listing"]
-                    json_pricing = result["pricing_quote"]
-                    if room_id is not None:
-                        listing = Listing(self.config, room_id, self.survey_id, room_type)
-                        # add all info available in json. Some not here --
-                        # bathroom, city, country, minstay, neighbourhood
-                        # since I haven't seen them in the json.
-                        # maybe just not reported in my searches? add later?
-                        # TBD: Error handling for missing json items?
-                        listing.host_id = json_listing["primary_host"]["id"]
-                        listing.address = json_listing["public_address"]
-                        listing.reviews = json_listing["reviews_count"]
-                        listing.overall_satisfaction = json_listing["star_rating"]
-                        listing.accommodates = json_listing["person_capacity"]
-                        listing.bedrooms = json_listing["bedrooms"]
-                        listing.price = json_pricing["rate"]["amount"]
-                        listing.latitude = json_listing["lat"]
-                        listing.longitude = json_listing["lng"]
-                        listing.coworker_hosted = json_listing["coworker_hosted"]
-                        listing.extra_host_languages = json_listing["extra_host_languages"]
-                        listing.name = json_listing["name"]
-                        listing.property_type = json_listing["property_type"]
-                        listing.currency = json_pricing["rate"]["currency"]
-                        listing.rate_type = json_pricing["rate_type"]
-                        if listing.host_id is not None:
-                            listing.deleted = 0
+                room_id = int(result["listing"]["id"])
+                if room_id is not None:
+                    room_count += 1
+                    listing = self.listing_from_search_page_json(result, self, room_id, room_type)
+                    if listing is None:
+                        continue
+                    if listing.host_id is not None:
+                        listing.deleted = 0
                         if flag == FLAGS_ADD:
                             if listing.save(FLAGS_INSERT_NO_REPLACE):
                                 new_rooms += 1
                         elif flag == FLAGS_PRINT:
                             print(room_type, listing.room_id)
-                            if listing.longitude < params["ne_lng"] or listing.longitude > params["nw_lng"]:
-                                logger.info("Listing outside rectangle: (lat,lng) = {lat:+.5f},{lng:+.5f}"
-                                            .format(lat=listing.latitude, lng=listing.longitude))
             if room_count > 0:
                 has_rooms = 1
             else:
@@ -1502,6 +1477,32 @@ class Survey():
             # unhandled at the moment
         except Exception:
             raise
+
+    def listing_from_search_page_json(self, result, survey, room_id, room_type):
+        try:
+            json_listing = result["listing"]
+            json_pricing = result["pricing_quote"]
+            listing = Listing(survey.config, room_id, survey.survey_id, room_type)
+            listing.host_id = json_listing["primary_host"]["id"]
+            listing.address = json_listing["public_address"]
+            listing.reviews = json_listing["reviews_count"]
+            listing.overall_satisfaction = json_listing["star_rating"]
+            listing.accommodates = json_listing["person_capacity"]
+            listing.bedrooms = json_listing["bedrooms"]
+            listing.price = json_pricing["rate"]["amount"]
+            listing.latitude = json_listing["lat"]
+            listing.longitude = json_listing["lng"]
+            listing.coworker_hosted = json_listing["coworker_hosted"]
+            listing.extra_host_languages = json_listing["extra_host_languages"]
+            listing.name = json_listing["name"]
+            listing.property_type = json_listing["property_type"]
+            listing.currency = json_pricing["rate"]["currency"]
+            listing.rate_type = json_pricing["rate_type"]
+            return listing
+        except:
+            logger.error("Error in __listing_from_search_page_json: returning None")
+            return None
+
 
 # ==============================================================================
 # End of class Survey
@@ -1867,8 +1868,8 @@ def ws_request(config, url, params=None):
 
         # If there is a list of proxies supplied, use it
         http_proxy = None
+        logger.debug("Using " + str(len(config.HTTP_PROXY_LIST)) + " proxies.")
         if len(config.HTTP_PROXY_LIST) > 0:
-            logger.debug("Using " + str(len(config.HTTP_PROXY_LIST)) + " proxies.")
             http_proxy = random.choice(config.HTTP_PROXY_LIST)
             proxies = {
                 'http': http_proxy,
@@ -1941,19 +1942,17 @@ def ws_search_rectangle(survey, room_type, guests, price_range,
         logger.info("-" * 70)
         logger.info(("Searching '{room_type}' ({guests} guests, prices in [{p1}, {p2}]), "
                      "zoom {zoom}").format(room_type=room_type,
-                                                 guests=str(guests),
-                                                 p1=str(price_range[0]),
-                                                 p2=str(price_range[1]),
-                                                 zoom=str(rectangle_zoom)))
+                                           guests=str(guests),
+                                           p1=str(price_range[0]),
+                                           p2=str(price_range[1]),
+                                           zoom=str(rectangle_zoom)))
         logger.debug("Rectangle: N={n:+.5f}, E={e:+.5f}, S={s:+.5f}, W={w:+.5f}".format(
-           n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
+            n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
         )
         new_rooms = 0
-        if rectangle_zoom >= (survey.config.SEARCH_MAX_RECTANGLE_ZOOM - 1):
-            truncate_criterion = 999999
-        else:
-            truncate_criterion = SEARCH_RECTANGLE_TRUNCATE_CRITERION
+        room_total = 0
         for page_number in range(1, survey.config.SEARCH_MAX_PAGES + 1):
+            room_count = 0
             logger.info("Page " + str(page_number) + "...")
             params = {}
             params["guests"] = str(guests)
@@ -1964,72 +1963,32 @@ def ws_search_rectangle(survey, room_type, guests, price_range,
             params["sw_lng"] = str(rectangle[3])
             params["ne_lat"] = str(rectangle[0])
             params["ne_lng"] = str(rectangle[1])
-            # testing -- SK added to force airbnb to only return results within rectangle
             params["search_by_map"] = str(True)
             params["price_min"] = str(price_range[0])
             params["price_max"] = str(price_range[1])
             response = ws_request_with_repeats(survey.config, URL_API_SEARCH_ROOT, params)
-            if response is None:
-                return 0
             json = response.json()
-            room_elements = []
             for result in json["results_json"]["search_results"]:
-                room_elements.append(result["listing"]["id"])
-                json_listing = result["listing"]
-                json_pricing = result["pricing_quote"]
-            room_count = len(room_elements)
-            if room_count > 0:
-                logger.info("Found " + str(room_count) + " rooms (new and old)")
-                for result in json["results_json"]["search_results"]:
-                    room_id = int(result["listing"]["id"])
-                    json_listing = result["listing"]
-                    json_pricing = result["pricing_quote"]
-                    if room_id is not None:
-                        listing = Listing(survey.config, room_id, survey.survey_id, room_type)
-                        # add all info available in json. Some not here --
-                        # bathroom, city, country, minstay, neighbourhood
-                        # since I haven't seen them in the json.
-                        # maybe just not reported in my searches? add later?
-                        # TBD: Error handling for missing json items?
-                        listing.host_id = json_listing["primary_host"]["id"]
-                        listing.address = json_listing["public_address"]
-                        listing.reviews = json_listing["reviews_count"]
-                        listing.overall_satisfaction = json_listing["star_rating"]
-                        listing.accommodates = json_listing["person_capacity"]
-                        listing.bedrooms = json_listing["bedrooms"]
-                        listing.price = json_pricing["rate"]["amount"]
-                        listing.latitude = json_listing["lat"]
-                        listing.longitude = json_listing["lng"]
-                        listing.coworker_hosted = json_listing["coworker_hosted"]
-                        listing.extra_host_languages = json_listing["extra_host_languages"]
-                        listing.name = json_listing["name"]
-                        listing.property_type = json_listing["property_type"]
-                        listing.currency = json_pricing["rate"]["currency"]
-                        listing.rate_type = json_pricing["rate_type"]
-                        if listing.host_id is not None:
-                            listing.deleted = 0
+                room_id = int(result["listing"]["id"])
+                if room_id is not None:
+                    room_count += 1
+                    room_total += 1
+                    listing = survey.listing_from_search_page_json(result, survey, room_id, room_type)
+                    if listing is None:
+                        continue
+                    if listing.host_id is not None:
+                        listing.deleted = 0
                         if flag == FLAGS_ADD:
                             if listing.save(FLAGS_INSERT_NO_REPLACE):
                                 new_rooms += 1
                         elif flag == FLAGS_PRINT:
                             print(room_type, listing.room_id)
-                            if listing.longitude < params["ne_lng"] or listing.longitude > params["nw_lng"]:
-                                logger.info("Listing outside rectangle: (lat,lng) = {lat:+.5f},{lng:+.5f}"
-                                            .format(lat=listing.latitude, lng=listing.longitude))
+
             if flag == FLAGS_PRINT:
                 # for FLAGS_PRINT, fetch one page and print it
                 sys.exit(0)
-                # TS: commenting out the immediate zoom for now
-            # if new_rooms > 0 and rectangle_zoom < survey.config.SEARCH_MAX_RECTANGLE_ZOOM:
-                # logger.info("Found new listings: zooming in...")
-                # break
             if room_count < SEARCH_LISTINGS_ON_FULL_PAGE:
                 logger.debug("Final page of listings for this search")
-                break
-            if new_rooms >= truncate_criterion:
-                logger.info(("Found {new_rooms} new rooms. "
-                             "Truncating search and zooming in").format(
-                                                                        new_rooms=str(new_rooms)))
                 break
         return (new_rooms, page_number)
     except UnicodeEncodeError:
