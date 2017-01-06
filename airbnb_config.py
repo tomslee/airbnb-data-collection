@@ -7,6 +7,12 @@ import psycopg2
 import psycopg2.errorcodes
 import os
 import configparser
+import sys
+
+# Set up logging
+# logger = logging.getLogger(__name__)
+logger = logging.getLogger("airbnb")
+
 
 class ABConfig():
 
@@ -14,6 +20,22 @@ class ABConfig():
         """ Read the configuration file <username>.config to set up the run
         """
         self.connection = None
+        self.FLAGS_ADD = 1
+        self.FLAGS_PRINT = 9
+        self.FLAGS_INSERT_REPLACE = True
+        self.FLAGS_INSERT_NO_REPLACE = False
+        self.URL_ROOT = "http://www.airbnb.com/"
+        self.URL_ROOM_ROOT = self.URL_ROOT + "rooms/"
+        self.URL_HOST_ROOT = self.URL_ROOT + "users/show/"
+        self.URL_SEARCH_ROOT = self.URL_ROOT + "s/"
+        self.URL_API_SEARCH_ROOT = self.URL_ROOT + "search/search_results"
+        self.SEARCH_AREA_GLOBAL = "UNKNOWN"  # special case: sample listings globally
+        self.SEARCH_RECTANGLE_EDGE_BLUR = 0.1
+        self.SEARCH_BY_NEIGHBORHOOD = 'neighborhood'  # default
+        self.SEARCH_BY_ZIPCODE = 'zipcode'
+        self.SEARCH_BY_BOUNDING_BOX = 'bounding box'
+        self.SEARCH_LISTINGS_ON_FULL_PAGE = 18
+
         try:
             config = configparser.ConfigParser()
 
@@ -42,7 +64,7 @@ class ABConfig():
             try:
                 self.HTTP_PROXY_LIST = config["NETWORK"]["proxy_list"].split(",")
                 self.HTTP_PROXY_LIST = [x.strip() for x in self.HTTP_PROXY_LIST]
-            except Exception as ex:
+            except Exception:
                 logging.warning("No proxy_list in " + config_file + ": not using proxies")
                 self.HTTP_PROXY_LIST = []
             try:
@@ -51,7 +73,7 @@ class ABConfig():
                 self.USER_AGENT_LIST = [x.strip('"') for x in self.USER_AGENT_LIST]
             except Exception:
                 logging.info("No user agent list in " + username +
-                            ".config: not using user agents")
+                             ".config: not using user agents")
                 self.USER_AGENT_LIST = []
             self.MAX_CONNECTION_ATTEMPTS = \
                 int(config["NETWORK"]["max_connection_attempts"])
