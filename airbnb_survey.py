@@ -1037,16 +1037,15 @@ class ABSurvey():
 
     def listing_from_search_page_json(self, result, survey, room_id, room_type):
         try:
-            json_listing = result["listing"]
-            json_pricing = result["pricing_quote"]
             listing = ABListing(self.config, room_id, survey.survey_id, room_type)
+            # listing
+            json_listing = result["listing"]
             listing.host_id = json_listing["primary_host"]["id"] if "primary_host" in json_listing else None
             listing.address = json_listing["public_address"] if "public_address" in json_listing else None
             listing.reviews = json_listing["reviews_count"] if "reviews_count" in json_listing else None
             listing.overall_satisfaction = json_listing["star_rating"] if "star_rating" in json_listing else None
             listing.accommodates = json_listing["person_capacity"] if "person_capacity" in json_listing else None
             listing.bedrooms = json_listing["bedrooms"] if "bedrooms" in json_listing else None
-            listing.price = json_pricing["rate"]["amount"] if "rate" in json_listing else None
             listing.latitude = json_listing["lat"] if "lat" in json_listing else None
             listing.longitude = json_listing["lng"] if "lng" in json_listing else None
             listing.coworker_hosted = json_listing["coworker_hosted"] if "coworker_hosted" in json_listing else None
@@ -1054,6 +1053,9 @@ class ABSurvey():
                 if "extra_host_languages" in json_listing else None
             listing.name = json_listing["name"] if "name" in json_listing else None
             listing.property_type = json_listing["property_type"] if "property_type" in json_listing else None
+            # pricing
+            json_pricing = result["pricing_quote"]
+            listing.price = json_pricing["rate"]["amount"] if "rate" in json_pricing else None
             listing.currency = json_pricing["rate"]["currency"] if "rate" in json_pricing else None
             listing.rate_type = json_pricing["rate_type"] if "rate_type" in json_pricing else None
             return listing
