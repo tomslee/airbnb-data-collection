@@ -287,7 +287,7 @@ class ABListing():
                 self.overall_satisfaction, self.accommodates, self.bedrooms,
                 self.bathrooms, self.price, self.deleted, self.minstay,
                 self.latitude, self.longitude, self.survey_id,
-                int(self.coworker_hosted), self.extra_host_languages, self.name,
+                self.coworker_hosted, self.extra_host_languages, self.name,
                 self.property_type, self.currency, self.rate_type
                 )
             cur.execute(sql, insert_args)
