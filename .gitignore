@@ -26,6 +26,7 @@ googlemaps.py
 /hvs/*
 /kml/*
 /public/*
+/export/*
 /shapefiles/*
 /spreadsheets/*
 /unite/*
