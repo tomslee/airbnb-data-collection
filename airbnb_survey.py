@@ -423,6 +423,32 @@ class ABSurvey():
                 logger.exception("Error in search:" + str(type(ex)))
                 raise
 
+    def __fini(self):
+        """ Wrap up a survey: correcting status and survey_date
+        """
+        try:
+            logger.info("Finishing survey {survey_id}, for {search_area_name}".format(
+                survey_id=self.survey_id, search_area_name=self.search_area_name
+            ))
+            sql_update = """
+            update survey
+            set survey_date = (
+            select min(last_modified)
+            from room
+            where room.survey_id = survey.survey_id
+            ), status = 1
+            where survey_id = %s
+            """
+            conn = self.config.connect()
+            cur = conn.cursor()
+            cur.execute(sql_update, (self.survey_id, ))
+            cur.close()
+            conn.commit()
+            return True
+        except:
+            logger.exception("Survey fini failed")
+            return False
+
     def search(self, flag, search_by):
         logger.info("-" * 70)
         logger.info("Survey {survey_id}, for {search_area_name}".format(
@@ -466,6 +492,7 @@ class ABSurvey():
                                                          room_type, flag)
                     else:
                         self.__search_neighborhood(None, room_type, flag)
+        self.__fini()
 
     def log_progress(self, room_type, neighborhood_id,
                      guests, page_number, has_rooms):
