@@ -54,14 +54,19 @@ def get_city_view(ab_config, city, abbrev):
 
 
 def city_data(ab_config, city, city_view, survey_id):
+    # sql = """
+        # select room_id, host_id, room_type,
+            # borough, neighborhood,
+            # reviews, overall_satisfaction,
+            # accommodates, bedrooms,
+            # price, minstay,
+            # latitude, longitude,
+            # last_modified
+        # from {city_view}
+        # where survey_id = %(survey_id)s
+        # """.format(city_view=city_view)
     sql = """
-        select room_id, host_id, room_type,
-            borough, neighborhood,
-            reviews, overall_satisfaction,
-            accommodates, bedrooms,
-            price, minstay,
-            latitude, longitude,
-            last_modified
+        select *
         from {city_view}
         where survey_id = %(survey_id)s
         """.format(city_view=city_view)
