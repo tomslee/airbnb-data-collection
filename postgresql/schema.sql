@@ -6,6 +6,8 @@
 -- Dumped by pg_dump version 9.4.4
 -- Started on 2016-03-25 13:54:01
 
+CREATE EXTENSION postgis;
+
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET client_encoding = 'UTF8';
