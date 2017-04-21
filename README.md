@@ -4,22 +4,25 @@
 
 The script scrapes the Airbnb web site to collect data about the shape of the company's business. No guarantees are made about the quality of data obtained using this script, statistically or about an individual page. So please check your results.
 
-Airbnb is increasingly making it difficult to scrape significant amounts of data from the site. I now have to run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services. If you would rather not make the attempt yourself, I will be happy to run collections for you when time allows.
+Airbnb is making it increasingly difficult to scrape significant amounts of data from the site. I now have to run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services. If you would rather not make the attempt yourself, I will be happy to run collections for you when time allows.
 
 ## Using the script
 
 You must be comfortable messing about with databases and python to use this.
 
-The airbnb.py script works with a PostgreSQL database. You need to have the PostGIS extension installed. The schema is in the two files postgresql/schema.sql and postgresql/functions.sql. You need to run those to create the database tables to start with.
-
 To run the airbnb.py scraper you will need to use python 3.4 and install the modules listed at the top of the file. The difficult one is lxml: you'll have to go to their web site to get it. It doesn't seem to be in the normal python repositories so if you're on Linux you may get it through an application package manager (apt-get or yum, for example).
 
-Various parameters are stored in a configuration file, which is read in as \$USER.config. Make a copy of example.config and edit it to match your database and the other parameters. The script uses proxies, so if you don't want those you may have to edit out some part of the code.
+Various parameters are stored in a configuration file, which is read in as `$USER.config`. Make a copy of `example.config` and edit it to match your database and the other parameters. The script uses proxies, so if you don't want those you may have to edit out some part of the code.
 
-### Upgrading the database schema
+### Installing and upgrading the database schema
+
+The airbnb.py script works with a PostgreSQL database. You need to have the PostGIS extension installed. The schema is in the two files `postgresql/schema.sql` and `postgresql/functions.sql`. You need to run those to create the database tables to start with (assuming both your user and database are named `airbnb`).
+
+    psql --user airbnb airbnb < postgresql/schema.sql
+    psql --user airbnb airbnb < postgresql/functions.sql
 
 If you have moved from an earlier version of the script, you may need to 
-update the schema of the room table by adding columns. To do this, run 
+update the schema of the `room` table by adding columns. To do this, run
 
     python schema_update.py
 
@@ -35,13 +38,13 @@ Add a search area (city) to the database:
 
     python airbnb.py -asa "City Name"
 
-This adds a city to the "search_area" table, and a set of neighborhoods to the "neighborhoods" table.
+This adds a city to the `search_area` table, and a set of neighborhoods to the `neighborhoods` table.
 
 Add a survey description for that city:
 
     python airbnb.py -asv "City Name"
 
-This makes an entry in the survey table, and should give you a survey_id value.
+This makes an entry in the `survey` table, and should give you a `survey_id` value.
 
 ### Running a survey 
 
@@ -52,7 +55,7 @@ There are three ways to run surveys:
 
 Of these, the bounding box is the one I use most and so is most thoroughly tested. The neighbourhood one is the easiest to set up, so you may want to try that first, but be warned that if Airbnb has not assigned neighbourhoods to the city you are searching, the results can be very incomplete.
 
-For users of earlier releases: Thanks to contributions from Sam Kaufman the searches now save information on the search step, and there is no need to run an "-f" step after running a -s or -sb or -sz search: the information about each room is collected from the search pages.
+For users of earlier releases: Thanks to contributions from Sam Kaufman the searches now save information on the search step, and there is no need to run an `-f` step after running a `-s` or `-sb` or `-sz` search: the information about each room is collected from the search pages.
 
 #### Neighbourhood search
 
@@ -108,9 +111,9 @@ WHERE search_area_id = NNN
 Ideally I'd like to automate this process. I am still experimenting with a combination of search_max_pages and search_max_rectangle_zoom (in the user.config file) that picks up all the listings in a reasonably efficient manner. It seems that for a city, search_max_pages=20 and search_max_rectangle_zoom=6 works well.
 
 
-# Results
+## Results
 
-The basic data is in the table "room". A complete search of a given city's listings is a "survey" and the surveys are tracked in table *survey*. If you want to see all the listings for a given survey, you can query the stored procedure survey_room (survey_id) from a tool such as PostgreSQL psql.
+The basic data is in the table `room`. A complete search of a given city's listings is a "survey" and the surveys are tracked in table `survey`. If you want to see all the listings for a given survey, you can query the stored procedure survey_room (survey_id) from a tool such as PostgreSQL psql.
 
 ```
 SELECT *
