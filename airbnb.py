@@ -125,16 +125,19 @@ def list_surveys(config):
         cur = conn.cursor()
         cur.execute("""
             select survey_id, to_char(survey_date, 'YYYY-Mon-DD'),
-                    survey_description, search_area_id
+                    survey_description, search_area_id, status
             from survey
+            where survey_date is not null
+            and status is not null
+            and survey_description is not null
             order by survey_id asc""")
         result_set = cur.fetchall()
         if len(result_set) > 0:
-            template = "| {0:3} | {1:>12} | {2:>30} | {3:3} |"
-            print(template.format("ID", "Date", "Description", "SA"))
+            template = "| {0:3} | {1:>12} | {2:>50} | {3:3} | {4:3} |"
+            print(template.format("ID", "Date", "Description", "SA", "status"))
             for survey in result_set:
-                (survey_id, survey_date, desc, sa_id) = survey
-                print(template.format(survey_id, survey_date, desc, sa_id))
+                (survey_id, survey_date, desc, sa_id, status) = survey
+                print(template.format(survey_id, survey_date, desc, sa_id, status))
     except Exception:
         logger.error("Cannot list surveys.")
         raise
