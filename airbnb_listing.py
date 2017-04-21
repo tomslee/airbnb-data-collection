@@ -11,10 +11,7 @@ import psycopg2
 import json
 import airbnb_ws
 
-# Set up logging
-# logger = logging.getLogger(__name__)
-logger = logging.getLogger("airbnb")
-logger.setLevel(logging.INFO)
+logger = logging.getLogger()
 
 
 class ABListing():
