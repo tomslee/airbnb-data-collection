@@ -8,17 +8,16 @@ import psycopg2.errorcodes
 import os
 import configparser
 import sys
+from datetime import datetime
 
-# Set up logging
-# logger = logging.getLogger(__name__)
-logger = logging.getLogger("airbnb")
-
+logger = logging.getLogger()
 
 class ABConfig():
 
-    def __init__(self):
+    def __init__(self, args):
         """ Read the configuration file <username>.config to set up the run
         """
+        self.config_file=args.config_file
         self.connection = None
         self.FLAGS_ADD = 1
         self.FLAGS_PRINT = 9
@@ -39,16 +38,18 @@ class ABConfig():
         try:
             config = configparser.ConfigParser()
 
-            # look for username.config on both Windows (USERNAME) and Linux (USER)
-            if os.name == "nt":
-                username = os.environ['USERNAME']
-            else:
-                username = os.environ['USER']
-            config_file = username + ".config"
-            if not os.path.isfile(config_file):
-                logging.error("Configuration file " + config_file + " not found.")
+            if self.config_file is None:
+                # look for username.config on both Windows (USERNAME) and Linux (USER)
+                if os.name == "nt":
+                    username = os.environ['USERNAME']
+                else:
+                    username = os.environ['USER']
+                self.config_file = username + ".config"
+            logger.info("Reading configuration file " + self.config_file)
+            if not os.path.isfile(self.config_file):
+                logger.error("Configuration file " + self.config_file + " not found.")
                 sys.exit()
-            config.read(config_file)
+            config.read(self.config_file)
 
             # database
             try:
@@ -58,21 +59,21 @@ class ABConfig():
                 self.DB_USER = config["DATABASE"]["db_user"]
                 self.DB_PASSWORD = config["DATABASE"]["db_password"]
             except Exception:
-                logging.error("Incomplete database information in " + config_file + ": cannot continue.")
+                logger.error("Incomplete database information in " + config_file + ": cannot continue.")
                 sys.exit()
             # network
             try:
                 self.HTTP_PROXY_LIST = config["NETWORK"]["proxy_list"].split(",")
                 self.HTTP_PROXY_LIST = [x.strip() for x in self.HTTP_PROXY_LIST]
             except Exception:
-                logging.warning("No proxy_list in " + config_file + ": not using proxies")
+                logger.warning("No proxy_list in " + config_file + ": not using proxies")
                 self.HTTP_PROXY_LIST = []
             try:
                 self.USER_AGENT_LIST = config["NETWORK"]["user_agent_list"].split(",,")
                 self.USER_AGENT_LIST = [x.strip() for x in self.USER_AGENT_LIST]
                 self.USER_AGENT_LIST = [x.strip('"') for x in self.USER_AGENT_LIST]
             except Exception:
-                logging.info("No user agent list in " + username +
+                logger.info("No user agent list in " + username +
                              ".config: not using user agents")
                 self.USER_AGENT_LIST = []
             self.MAX_CONNECTION_ATTEMPTS = \
@@ -90,7 +91,7 @@ class ABConfig():
             self.RE_INIT_SLEEP_TIME = float(config["SURVEY"]["re_init_sleep_time"])
 
         except Exception:
-            logging.exception("Failed to read config file properly")
+            logger.exception("Failed to read config file properly")
             raise
 
     # get a database connection
@@ -113,8 +114,8 @@ class ABConfig():
                 self.connection.set_client_encoding('UTF8')
             return self.connection
         except psycopg2.OperationalError as pgoe:
-            logging.error(pgoe.message)
+            logger.error(pgoe.message)
             raise
         except Exception:
-            logging.error("Failed to connect to database.")
+            logger.error("Failed to connect to database.")
             raise

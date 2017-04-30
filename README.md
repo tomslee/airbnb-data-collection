@@ -14,6 +14,12 @@ To run the airbnb.py scraper you will need to use python 3.4 and install the mod
 
 Various parameters are stored in a configuration file, which is read in as `$USER.config`. Make a copy of `example.config` and edit it to match your database and the other parameters. The script uses proxies, so if you don't want those you may have to edit out some part of the code.
 
+If you want to run multiple concurrent surveys with different configuration parameters, you can do so by making a copy of your user.config file, editing it and running the airbnb.py scripts (see below) with an additional command line parameter. The database connection test would become
+
+    python airbnb.py -dbp -c other.config
+
+This was implemented initially to run bounding-box surveys for countries (maximum zoom of 8) and cities (maximum zoom of 6) at the same time.
+
 ### Installing and upgrading the database schema
 
 The airbnb.py script works with a PostgreSQL database. You need to have the PostGIS extension installed. The schema is in the two files `postgresql/schema.sql` and `postgresql/functions.sql`. You need to run those to create the database tables to start with (assuming both your user and database are named `airbnb`).

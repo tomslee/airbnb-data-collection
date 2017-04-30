@@ -17,11 +17,7 @@ from datetime import date
 from airbnb_listing import ABListing
 import airbnb_ws
 
-# Set up logging
-# logger = logging.getLogger(__name__)
-logger = logging.getLogger("airbnb")
-logger.setLevel(logging.INFO)
-
+logger = logging.getLogger()
 
 def db_get_neighborhood_id(config, survey_id, neighborhood):
     try:
@@ -399,6 +395,28 @@ class ABSurvey():
         self.search_area_name = None
         self.__set_search_area()
 
+        # Set up logging
+        logger.setLevel(logging.INFO)
+        # create a file handler
+        logfile = "survey_{survey_id}.log".format(survey_id=self.survey_id)
+        filelog_handler = logging.FileHandler(logfile, encoding="utf-8")
+        filelog_formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s%(message)s')
+        filelog_handler.setFormatter(filelog_formatter)
+        # create a console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        ch_formatter = logging.Formatter('%(levelname)-8s%(message)s')
+        console_handler.setFormatter(ch_formatter)
+
+        # logging: set log file name, format, and level
+        logger.addHandler(filelog_handler)
+        logger.addHandler(console_handler)
+
+        # Suppress informational logging from requests module
+        logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logger.propagate = False
+        
     def __global_search(self):
         """
         Special search to randomly choose rooms from a range rather than to
@@ -460,7 +478,8 @@ class ABSurvey():
             self.__global_search()
         else:
             if search_by == self.config.SEARCH_BY_BOUNDING_BOX:
-                logger.info("Searching by bounding box")
+                logger.info("Searching by bounding box, max_zoom={max_zoom}"
+                        .format(max_zoom=self.config.SEARCH_MAX_RECTANGLE_ZOOM ))
                 self.__search_loop_bounding_box(flag)
                 # logger.info("Searching by bounding box - logged")
                 # self.__search_loop_bounding_box_logged(flag)
@@ -637,7 +656,10 @@ class ABSurvey():
             price_increments = [0, 40, 60, 80, 100, 120,
                                 140, 180, 200,
                                 300, 500,
-                                700, 1000, 1500, 10000]
+                                700, 1000, 1500, 50000]
+            max_price = {"Private room": 500,
+                         "Entire home/apt": 100000,
+                         "Shared room": 500}
             for room_type in ("Private room", "Entire home/apt", "Shared room"):
                 if room_type in ("Private room", "Shared room"):
                     max_guests = 4
@@ -646,10 +668,6 @@ class ABSurvey():
                 for guests in range(1, max_guests):
                     for i in range(len(price_increments) - 1):
                         price_range = [price_increments[i], price_increments[i+1]]
-                        # TS: move this max_price thing out of the loop
-                        max_price = {"Private room": 500,
-                                     "Entire home/apt": 10000,
-                                     "Shared room": 500}
                         rectangle_zoom = 0
                         if price_range[1] > max_price[room_type]:
                             continue

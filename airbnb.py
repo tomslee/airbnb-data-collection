@@ -38,33 +38,8 @@ import airbnb_ws
 # 2.6 adds a bounding box search
 # 2.5 is a bit of a rewrite: classes for ABListing and ABSurvey, and requests lib
 # 2.3 released Jan 12, 2015, to handle a web site update
-SCRIPT_VERSION_NUMBER = 2.7
-
-# Set up logging
-# logger = logging.getLogger(__name__)
-logger = logging.getLogger("airbnb")
-logger.setLevel(logging.INFO)
-
-# Suppress informational logging from requests module
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-
-ch_formatter = logging.Formatter('%(levelname)-8s%(message)s')
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(ch_formatter)
-logger.addHandler(console_handler)
-
-# logging: set log file name, format, and level
-filelog_formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s%(message)s')
-logfile = str(datetime.now())
-logfile = logfile.replace(":", "_")
-logfile = logfile.replace(" ", "_")
-logfile = logfile.replace(".", "_")
-logfile += ".log"
-filelog_handler = logging.FileHandler(logfile, encoding="utf-8")
-filelog_handler.setFormatter(filelog_formatter)
-logger.addHandler(filelog_handler)
+SCRIPT_VERSION_NUMBER = 2.8
+logger = logging.getLogger()
 
 
 def list_search_area_info(config, search_area):
@@ -350,6 +325,10 @@ def parse_args():
         description='Manage a database of Airbnb listings.',
         usage='%(prog)s [options]')
     # Only one argument!
+    parser.add_argument("-c", "--config_file",
+                        metavar="config_file", action="store", default=None,
+                        help="""explicitly set configuration file, instead of
+                        using the default <username>.config""")
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-asa', '--addsearcharea',
                        metavar='search_area', action='store', default=False,
@@ -434,8 +413,8 @@ def parse_args():
 
 
 def main():
-    ab_config = ABConfig()
     (parser, args) = parse_args()
+    ab_config = ABConfig(args)
     try:
         if args.search:
             survey = ABSurvey(ab_config, args.search)
