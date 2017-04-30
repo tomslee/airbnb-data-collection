@@ -170,6 +170,7 @@ def export_city_data(ab_config, city, project, format):
     survey_ids = df["survey_id"].tolist()
     survey_dates = df["survey_date"].tolist()
     logging.info(" ---- Surveys: " + ', '.join(str(id) for id in survey_ids))
+    conn = ab_config.connect()
 
     # survey_ids = [11, ]
     if project == "gis":
@@ -213,7 +214,6 @@ def export_city_data(ab_config, city, project, format):
         """
 
     city_bar = city.replace(" ", "_").lower()
-    conn = ab_config.connect()
     if format == "csv":
         for survey_id, survey_date in \
                 zip(survey_ids, survey_dates):
@@ -301,10 +301,13 @@ def export_city_data(ab_config, city, project, format):
 
 
 def main():
-    ab_config = ABConfig()
     parser = \
         argparse.ArgumentParser(
             description="Create a spreadsheet of surveys from a city")
+    parser.add_argument("-cfg", "--config_file",
+                        metavar="config_file", action="store", default=None,
+                        help="""explicitly set configuration file, instead of
+                        using the default <username>.config""")
     parser.add_argument('-c', '--city',
                         metavar='city', action='store',
                         help="""set the city""")
@@ -319,6 +322,7 @@ def main():
                         action='store_true', default=False,
                         help="create a summary spreadsheet instead of raw data")
     args = parser.parse_args()
+    ab_config = ABConfig(args)
 
     if args.city:
         if args.summary:
