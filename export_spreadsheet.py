@@ -10,23 +10,22 @@ LOG_LEVEL = logging.INFO
 # Set up logging
 LOG_FORMAT = '%(levelname)-8s%(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
-START_DATE = '2013-05-02'
-# START_DATE = '2016-08-31'
+DEFAULT_START_DATE = '2013-05-02'
 
 
-def survey_df(ab_config, city):
+def survey_df(ab_config, city, start_date):
     sql_survey_ids = """
         select survey_id, survey_date, comment
         from survey s, search_area sa
         where s.search_area_id = sa.search_area_id
-        and sa.name = %(name)s
-        and s.survey_date > %(date)s
+        and sa.name = %(city)s
+        and s.survey_date > '{start_date}'
         and s.status = 1
         order by survey_id
-    """
+    """.format(start_date=start_date)
     conn = ab_config.connect()
     df = pd.read_sql(sql_survey_ids, conn,
-                     params={"name": city, "date": START_DATE})
+                     params={"city": city})
     conn.close()
     return(df)
 
@@ -123,7 +122,7 @@ def by_neighborhood(ab_config, city_view):
     return df
 
 
-def export_city_summary(ab_config, city, project):
+def export_city_summary(ab_config, city, project, start_date):
     logging.info(" ---- Exporting summary spreadsheet" +
                  " for " + city +
                  " using project " + project)
@@ -132,7 +131,7 @@ def export_city_summary(ab_config, city, project):
     xlsxfile = ("./{project}/slee_{project}_{city_bar}_summary_{today}.xlsx"
                 ).format(project=project, city_bar=city_bar, today=today)
     writer = pd.ExcelWriter(xlsxfile, engine="xlsxwriter")
-    df = survey_df(ab_config, city)
+    df = survey_df(ab_config, city, start_date)
     city_view = city_view_name(ab_config, city)
     logging.info("Total listings...")
     df = total_listings(ab_config, city_view)
@@ -161,12 +160,12 @@ def export_city_summary(ab_config, city, project):
     writer.save()
 
 
-def export_city_data(ab_config, city, project, format):
+def export_city_data(ab_config, city, project, format, start_date):
     logging.info(" ---- Exporting " + format +
                  " for " + city +
                  " using project " + project)
 
-    df = survey_df(ab_config, city)
+    df = survey_df(ab_config, city, start_date)
     survey_ids = df["survey_id"].tolist()
     survey_dates = df["survey_date"].tolist()
     logging.info(" ---- Surveys: " + ', '.join(str(id) for id in survey_ids))
@@ -261,7 +260,7 @@ def export_city_data(ab_config, city, project, format):
             sql += " and s.survey_date > %(start_date)s"
             sql += " group by survey_date, neighborhood order by 3 desc"
             try:
-                df = pd.read_sql(sql, conn, params={"start_date": START_DATE})
+                df = pd.read_sql(sql, conn, params={"start_date": start_date})
                 if len(df.index) > 0:
                     logging.info("Exporting listings for " + city)
                     dfnb = df.pivot(index='neighborhood', columns='survey_date',
@@ -283,7 +282,7 @@ def export_city_data(ab_config, city, project, format):
         sql += " and s.survey_date > %(start_date)s"
         sql += " group by survey_date, neighborhood order by 3  desc"
         try:
-            df = pd.read_sql(sql, conn, params={"start_date": START_DATE})
+            df = pd.read_sql(sql, conn, params={"start_date": start_date})
             if len(df.index) > 0:
                 logging.info("Exporting visits for " + city)
                 dfnb = df.pivot(index='neighborhood', columns='survey_date',
@@ -321,14 +320,20 @@ def main():
     parser.add_argument('-s', '--summary',
                         action='store_true', default=False,
                         help="create a summary spreadsheet instead of raw data")
+    parser.add_argument('-sd', '--start_date',
+                        metavar="start_date", action='store',
+                        default=DEFAULT_START_DATE,
+                        help="create a summary spreadsheet instead of raw data")
     args = parser.parse_args()
     ab_config = ABConfig(args)
 
     if args.city:
         if args.summary:
-            export_city_summary(ab_config, args.city, args.project.lower())
+            export_city_summary(ab_config, args.city, args.project.lower(),
+                    args.start_date)
         else:
-            export_city_data(ab_config, args.city, args.project.lower(), args.format)
+            export_city_data(ab_config, args.city, args.project.lower(),
+                    args.format, args.start_date)
     else:
         parser.print_help()
 
