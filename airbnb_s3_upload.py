@@ -19,13 +19,22 @@ logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
 
 def surveys(ab_config):
     sql_survey_ids = """
-        select survey_id, sa.name city, sa.abbreviation city_abbrev, survey_date, comment
-        from survey s, search_area sa
-        where s.search_area_id = sa.search_area_id
-        and sa.abbreviation is not null
-        and sa.bb_n_lat is not null
-        and s.status = 1
-        order by 2, 1
+    select  survey_id, 
+            sa.name city, 
+            sa.abbreviation city_abbrev, 
+            survey_date, 
+            comment
+    from survey s, search_area sa
+    on s.search_area_id = sa.search_area_id
+    where sa.abbreviation is not null
+    and sa.bb_n_lat is not null
+    and s.status = 1
+    and  'listing_' || sa.abbreviation in 
+    (	select table_name
+	FROM   information_schema.views 
+	where table_schema = 'public'
+    )   
+    order by 2, 1
     """
     conn = ab_config.connect()
     cur = conn.cursor()

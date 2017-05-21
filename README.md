@@ -10,11 +10,12 @@ Airbnb is making it increasingly difficult to scrape significant amounts of data
 
 You must be comfortable messing about with databases and python to use this.
 
-To run the airbnb.py scraper you will need to use python 3.4 and install the modules listed at the top of the file. The difficult one is lxml: you'll have to go to their web site to get it. It doesn't seem to be in the normal python repositories so if you're on Linux you may get it through an application package manager (apt-get or yum, for example).
+To run the airbnb.py scraper you will need to use python 3.4 or later and install the modules listed at the top of the file. The difficult one is lxml: you'll have to go to their web site to get it. It doesn't seem to be in the normal python repositories so if you're on Linux you may get it through an application package manager (apt-get or yum, for example). The Anaconda distribution includes lxml and many other packages, and that's now the one 
+I use.
 
 Various parameters are stored in a configuration file, which is read in as `$USER.config`. Make a copy of `example.config` and edit it to match your database and the other parameters. The script uses proxies, so if you don't want those you may have to edit out some part of the code.
 
-If you want to run multiple concurrent surveys with different configuration parameters, you can do so by making a copy of your user.config file, editing it and running the airbnb.py scripts (see below) with an additional command line parameter. The database connection test would become
+If you want to run multiple concurrent surveys with different configuration parameters, you can do so by making a copy of your `user.config` file, editing it and running the airbnb.py scripts (see below) with an additional command line parameter. The database connection test would become
 
     python airbnb.py -dbp -c other.config
 
@@ -26,10 +27,6 @@ The airbnb.py script works with a PostgreSQL database. You need to have the Post
 
     psql --user airbnb airbnb < postgresql/schema.sql
     psql --user airbnb airbnb < postgresql/functions.sql
-
-If you have moved from an earlier version of the script, you may need to 
-update the schema of the `room` table by adding columns. To do this, run
-
     python schema_update.py
 
 ### Preparing to run a survey

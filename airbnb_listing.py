@@ -58,6 +58,9 @@ class ABListing():
 
     def status_check(self):
         status = True  # OK
+        # if sufficient of the values are None or don't exist, the room 
+        # entry was not properly parsed and we may as well throw the whole
+        # thing away.
         unassigned_values = {key: value
                              for key, value in vars(self).items()
                              if not key.startswith('__') and

@@ -332,6 +332,10 @@ def ws_search_rectangle_logged(survey, room_type, guests,
                     listing.address = json_listing["public_address"]
                     listing.reviews = json_listing["reviews_count"]
                     listing.overall_satisfaction = json_listing["star_rating"]
+                    # 0 is usually a marker of too few reviews
+                    if (listing.overall_satisfaction == 0 and
+                            listing.reviews < 4):
+                        listing.overall_satisfaction = None
                     listing.accommodates = json_listing["person_capacity"]
                     listing.bedrooms = json_listing["bedrooms"]
                     listing.price = json_pricing["rate"]["amount"]
