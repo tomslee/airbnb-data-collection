@@ -25,7 +25,8 @@ import psycopg2
 import psycopg2.errorcodes
 import webbrowser
 from airbnb_config import ABConfig
-from airbnb_survey import ABSurvey
+from airbnb_survey import ABSurvey, ABSurveyByBoundingBox
+from airbnb_survey import ABSurveyByNeighborhood, ABSurveyByZipcode
 from airbnb_listing import ABListing
 import airbnb_ws
 
@@ -417,17 +418,17 @@ def main():
     ab_config = ABConfig(args)
     try:
         if args.search:
-            survey = ABSurvey(ab_config, args.search)
-            survey.search(ab_config.FLAGS_ADD, ab_config.SEARCH_BY_NEIGHBORHOOD)
+            survey = ABSurveyByNeighborhood(ab_config, args.search)
+            survey.search(ab_config.FLAGS_ADD)
         elif args.search_by_neighborhood:
-            survey = ABSurvey(ab_config, args.search_by_neighborhood)
-            survey.search(ab_config.FLAGS_ADD, ab_config.SEARCH_BY_NEIGHBORHOOD)
+            survey = ABSurveyByNeighborhood(ab_config, args.search_by_neighborhood)
+            survey.search(ab_config.FLAGS_ADD)
         elif args.search_by_zipcode:
-            survey = ABSurvey(ab_config, args.search_by_zipcode)
-            survey.search(ab_config.FLAGS_ADD, ab_config.SEARCH_BY_ZIPCODE)
+            survey = ABSurveyByZipcode(ab_config, args.search_by_zipcode)
+            survey.search(ab_config.FLAGS_ADD)
         elif args.search_by_bounding_box:
-            survey = ABSurvey(ab_config, args.search_by_bounding_box)
-            survey.search(ab_config.FLAGS_ADD, ab_config.SEARCH_BY_BOUNDING_BOX)
+            survey = ABSurveyByBoundingBox(ab_config, args.search_by_bounding_box)
+            survey.search(ab_config.FLAGS_ADD)
         elif args.fill is not None:
             fill_loop_by_room(ab_config, args.fill)
         elif args.addsearcharea:
@@ -453,17 +454,17 @@ def main():
             listing = ABListing(ab_config, args.printroom, None)
             listing.ws_get_room_info(ab_config.FLAGS_PRINT)
         elif args.printsearch:
-            survey = ABSurvey(ab_config, args.printsearch)
-            survey.search(ab_config.FLAGS_PRINT, ab_config.SEARCH_BY_NEIGHBORHOOD)
+            survey = ABSurveyByNeighborhood(ab_config, args.printsearch)
+            survey.search(ab_config.FLAGS_PRINT)
         elif args.printsearch_by_neighborhood:
-            survey = ABSurvey(ab_config, args.printsearch_by_neighborhood)
-            survey.search(ab_config.FLAGS_PRINT, ab_config.SEARCH_BY_NEIGHBORHOOD)
+            survey = ABSurveyByNeighborhood(ab_config, args.printsearch_by_neighborhood)
+            survey.search(ab_config.FLAGS_PRINT)
         elif args.printsearch_by_bounding_box:
-            survey = ABSurvey(ab_config, args.printsearch_by_bounding_box)
-            survey.search(ab_config.FLAGS_PRINT, ab_config.SEARCH_BY_BOUNDING_BOX)
+            survey = ABSurveyByBoundingBox(ab_config, args.printsearch_by_bounding_box)
+            survey.search(ab_config.FLAGS_PRINT)
         elif args.printsearch_by_zipcode:
-            survey = ABSurvey(ab_config, args.printsearch_by_zipcode)
-            survey.search(ab_config.FLAGS_PRINT, ab_config.SEARCH_BY_ZIPCODE)
+            survey = ABSurveyByZipcode(ab_config, args.printsearch_by_zipcode)
+            survey.search(ab_config.FLAGS_PRINT)
         else:
             parser.print_help()
     except KeyboardInterrupt:
