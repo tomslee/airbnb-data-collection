@@ -24,7 +24,7 @@ def surveys(ab_config):
             sa.abbreviation city_abbrev, 
             survey_date, 
             comment
-    from survey s, search_area sa
+    from survey s join search_area sa
     on s.search_area_id = sa.search_area_id
     where sa.abbreviation is not null
     and sa.bb_n_lat is not null

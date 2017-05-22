@@ -14,10 +14,12 @@ logger = logging.getLogger()
 
 class ABConfig():
 
-    def __init__(self, args):
+    def __init__(self, args=None):
         """ Read the configuration file <username>.config to set up the run
         """
-        self.config_file=args.config_file
+        self.config_file = None
+        if args is not None:
+            self.config_file=args.config_file
         self.connection = None
         self.FLAGS_ADD = 1
         self.FLAGS_PRINT = 9
