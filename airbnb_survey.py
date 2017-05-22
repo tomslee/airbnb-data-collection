@@ -307,6 +307,7 @@ class ABSurveyByBoundingBox(ABSurvey):
             max_price = {"Private room": 500,
                          "Entire home/apt": 100000,
                          "Shared room": 500}
+
             for room_type in ("Private room", "Entire home/apt", "Shared room"):
                 if room_type in ("Private room", "Shared room"):
                     max_guests = 4
@@ -333,12 +334,12 @@ class ABSurveyByBoundingBox(ABSurvey):
         this method prints output and sets up new rectangles, if necessary,
         for another round of searching.
 
-        To match Airbnb's use of SW and NE corners, the quadrants are divided
+        To match Airbnb's use of SW and NE corners, quadrants are divided
         like this:
 
-                     [0,1]   |   [0,0]
-                     ------------------
-                     [1,1]   |   [1,0]
+                     [0,1] (NW)   |   [0,0] (NE)
+                     ---------------------------
+                     [1,1] (SW)   |   [1,0] (SE)
         """
         try:
             quadrant_zoom = len(quadrant_node)
@@ -480,6 +481,18 @@ class ABSurveyByBoundingBox(ABSurvey):
             logger.exception("Exception in get_search_page_info_rectangle")
             raise
 
+    def log_progress_bb(self, room_type, guests, price_min, price_max, quadrant_node):
+        sql_update = """
+        update survey_progress_log_bb
+        set room_type = 
+        , guests = 
+        , price_min =
+        , price_max = 
+        , quadrant_node = 
+        where survey_id = 
+        """
+        pass
+)
 
 
 class ABSurveyByNeighborhood(ABSurvey):
@@ -627,6 +640,12 @@ class ABSurveyByNeighborhood(ABSurvey):
             and nb.name = %s
             """
             conn = self.config.connect()
+            conn = self.config.connect()
+            cur = conn.cursor()
+            cur.execute(sql, (self.survey_id, neighborhood,))
+            neighborhood_id = cur.fetchone()[0]
+            cur.close()
+            conn.commit()
             cur = conn.cursor()
             cur.execute(sql, (self.survey_id, neighborhood,))
             neighborhood_id = cur.fetchone()[0]
