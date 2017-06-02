@@ -20,14 +20,6 @@ import airbnb_ws
 logger = logging.getLogger()
 
 
-# ---------------------------------------------------------------------------- 
-# TODO: these functions should be moved into one of the survey classes. I just
-# haven't done it.
-# ---------------------------------------------------------------------------- 
-
-
-
-
 class ABSurvey():
 
     def __init__(self, config, survey_id):
@@ -38,7 +30,7 @@ class ABSurvey():
         self.set_search_area()
 
         # Set up logging
-        logger.setLevel(logging.INFO)
+        logger.setLevel(config.log_level)
         # create a file handler
         logfile = "survey_{survey_id}.log".format(survey_id=self.survey_id)
         filelog_handler = logging.FileHandler(logfile, encoding="utf-8")
@@ -46,7 +38,7 @@ class ABSurvey():
         filelog_handler.setFormatter(filelog_formatter)
         # create a console handler
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(config.log_level)
         ch_formatter = logging.Formatter('%(levelname)-8s%(message)s')
         console_handler.setFormatter(ch_formatter)
 
@@ -492,7 +484,6 @@ class ABSurveyByBoundingBox(ABSurvey):
         where survey_id = 
         """
         pass
-)
 
 
 class ABSurveyByNeighborhood(ABSurvey):

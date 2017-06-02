@@ -326,11 +326,14 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Manage a database of Airbnb listings.',
         usage='%(prog)s [options]')
-    # Only one argument!
+    parser.add_argument("-v", "--verbose",
+                        action="store_true", default=False,
+                        help="""write verbose (debug) output to the log file""")
     parser.add_argument("-c", "--config_file",
                         metavar="config_file", action="store", default=None,
                         help="""explicitly set configuration file, instead of
                         using the default <username>.config""")
+    # Only one argument!
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-asa', '--addsearcharea',
                        metavar='search_area', action='store', default=False,
@@ -404,7 +407,7 @@ def parse_args():
                        metavar='survey_id', type=int,
                        help="""search for rooms using survey_id,
                        by zipcode""")
-    group.add_argument('-v', '--version',
+    group.add_argument('-V', '--version',
                        action='version',
                        version='%(prog)s, version ' +
                        str(SCRIPT_VERSION_NUMBER))
