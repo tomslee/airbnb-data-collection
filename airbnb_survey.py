@@ -351,7 +351,6 @@ class ABSurveyByBoundingBox(ABSurvey):
                 room_types_start_index = self.room_types.index(self.logged_progress["room_type"])
                 guests_start = self.logged_progress["guests"]
                 price_start_index = price_increments.index(self.logged_progress["price_range"][0])
-                quadtree_node = self.logged_progress["quadtree"]
                 logger.info("""Restarting survey {survey_id} at room_type={room_type}, guests={guests}, price={price}
                         quadtree_node={quadtree_node}"""
                         .format(survey_id=self.survey_id,
@@ -376,12 +375,6 @@ class ABSurveyByBoundingBox(ABSurvey):
                         progress["quadtree"] = quadtree_node
                         self.recurse_quadtree(
                             room_type, guests, price_range, quadtree_node, flag)
-                        # reset the quadtree for the next guest count, so that
-                        # (in the event of a resumed survey) the next guest
-                        # count gets the whole bounding box
-                        #TODO fix so that on resume we don't miss part of the
-                        # hierarchy
-                        quadtree_node = []
                 # reset the starting point so that (in the event of a resumed
                 # survey) the next room type gets all guest counts.
                 guests_start = 1
@@ -393,7 +386,7 @@ class ABSurveyByBoundingBox(ABSurvey):
     def recurse_quadtree(self, room_type, guests, price_range, quadtree_node, flag):
         """
         Recursive function to search for listings inside a rectangle.
-        The actual search calls are done in search_rectangle, and
+        The actual search calls are done in search_node, and
         this method prints output and sets up new rectangles, if necessary,
         for another round of searching.
 
@@ -407,36 +400,41 @@ class ABSurveyByBoundingBox(ABSurvey):
         The quadrants are searched in the order [0,0], [0,1], [1,0], [1,1]
         """
         try:
-            quadtree_zoom = len(quadtree_node)
-            (new_rooms, page_count) = self.search_rectangle(room_type, guests, price_range,
+            if self.subtree_previously_completed(quadtree_node):
+                # go to the next subtree 
+                # (I'm sure there is a more elegant way to do this)
+                if quadtree_node[-1] == [0,0]:
+                    quadtree_node[-1] = [0,1]
+                elif quadtree_node[-1] == [0,1]:
+                    quadtree_node[-1] = [1,0]
+                elif quadtree_node[-1] == [1,0]:
+                    quadtree_node[-1] = [1,1]
+                elif quadtree_node[-1] == [1,1]:
+                    del quadtree_node[-1]
+                return
+
+            # Only search this node if it has not been previously searched
+            if (self.logged_progress["quadtree"] is None or
+                len(quadtree_node) >= len(self.logged_progress["quadtree"])):
+                (new_rooms, page_count) = self.search_node(room_type, guests, price_range,
                                                            quadtree_node, flag)
-            logger.info(("Results: {new_rooms} new rooms from {page_count} pages "
-                "for {room_type}, {g} guests, prices in [{p1}, {p2}]").format(
-                             room_type=room_type, g=str(guests),
-                             p1=str(price_range[0]),
-                             p2=str(price_range[1]),
-                             new_rooms=str(new_rooms),
-                             page_count=str(page_count)))
-            logger.info("\tquadtree_node {quadtree_node}".format(quadtree_node=str(quadtree_node)))
-            # Log progress
-            logger.debug("Logging progress: {quadtree_node}".format(quadtree_node=quadtree_node))
-            logged = self.log_progress(room_type, guests, price_range[0],
-                    price_range[1], quadtree_node)
-            if not logged:
-                logger.debug("Logging progress failed for {quadtree_node}"
-                        .format(quadtree_node=quadtree_node))
+                # we are off and searching: set logged_progress to None so 
+                # future guests, prices etc don't get truncated
+                self.logged_progress["quadtree"] = None
+            else:
+                logger.debug("Node previously searched: {quadtree}".format(quadtree=quadtree_node))
+                # if the logged_progress has more depth, recurse
+                if len(self.logged_progress["quadtree"]) >= len(quadtree_node):
+                    page_count = self.config.SEARCH_MAX_PAGES
             # The max zoom is set in config, but decrease it by one for each guest
             # so that high guest counts don't zoom in (which turns out to generate
             # very few new rooms but take a lot of time)
-            # if quadtree_zoom < max(1, (self.config.SEARCH_MAX_RECTANGLE_ZOOM - 2 * (guests - 1))):
-            if quadtree_zoom < self.config.SEARCH_MAX_RECTANGLE_ZOOM:
-                zoomable = True
-            else:
-                zoomable = False
+            # zoomable = len(quadtree_node) < max(1, (self.config.SEARCH_MAX_RECTANGLE_ZOOM - 2 * (guests - 1)))
+            zoomable = len(quadtree_node) < self.config.SEARCH_MAX_RECTANGLE_ZOOM
             # If (new_rooms > 0 or page_count == self.config.SEARCH_MAX_PAGES) and zoomable:
-            # zoom in if there are new rooms, or (to deal with occasional cases) if
-            # the search returned a full set of SEARCH_MAX_PAGES pages even if no rooms
-            # were new.
+            # zoom in if the search returned a full set of SEARCH_MAX_PAGES pages even 
+            # if no rooms were new, as there may still be new rooms that show up at 
+            # higher zoom levels.
             if page_count == self.config.SEARCH_MAX_PAGES and zoomable:
                 # append a node to the quadtree for a new level
                 quadtree_node.append([0,0])
@@ -469,7 +467,94 @@ class ABSurveyByBoundingBox(ABSurvey):
             logger.exception("Error in recurse_quadtree")
             raise
 
-    def get_rectangle_from_quadtree(self, quadtree_node):
+    def search_node(self, room_type, guests, price_range, quadtree_node, flag):
+        """
+            rectangle is (n_lat, e_lng, s_lat, w_lng)
+            returns number of *new* rooms and number of pages tested
+        """
+        try:
+            rectangle = self.get_rectangle_from_quadtree_node(quadtree_node)
+            logger.info("-" * 70)
+            logger.info(("Searching rectangle: {room_type}, {guests} guests, prices in [{p1}, {p2}], "
+                        "\n\tquadtree_node {node}").format(room_type=room_type,
+                                            guests=str(guests),
+                                            p1=str(price_range[0]),
+                                            p2=str(price_range[1]),
+                                            node=str(quadtree_node)))
+            logger.debug("Rectangle: N={n:+.5f}, E={e:+.5f}, S={s:+.5f}, W={w:+.5f}".format(
+                n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
+            )
+            new_rooms = 0
+            room_total = 0
+            for page_number in range(1, self.config.SEARCH_MAX_PAGES + 1):
+                room_count = 0
+                # set up the parameters for the request
+                params = {}
+                params["guests"] = str(guests)
+                params["page"] = str(page_number)
+                params["source"] = "filter"
+                params["room_types[]"] = room_type
+                params["sw_lat"] = str(rectangle[2])
+                params["sw_lng"] = str(rectangle[3])
+                params["ne_lat"] = str(rectangle[0])
+                params["ne_lng"] = str(rectangle[1])
+                params["search_by_map"] = str(True)
+                params["price_min"] = str(price_range[0])
+                params["price_max"] = str(price_range[1])
+                # make the http request
+                response = airbnb_ws.ws_request_with_repeats(self.config, self.config.URL_API_SEARCH_ROOT, params)
+                # process the response
+                json = response.json()
+                for result in json["results_json"]["search_results"]:
+                    room_id = int(result["listing"]["id"])
+                    if room_id is not None:
+                        room_count += 1
+                        room_total += 1
+                        listing = self.listing_from_search_page_json(result, room_id, room_type)
+                        if listing is None:
+                            continue
+                        if listing.host_id is not None:
+                            listing.deleted = 0
+                            if flag == self.config.FLAGS_ADD:
+                                if listing.save(self.config.FLAGS_INSERT_NO_REPLACE):
+                                    new_rooms += 1
+                            elif flag == self.config.FLAGS_PRINT:
+                                print(room_type, listing.room_id)
+                # Log page-level results
+                logger.info("Page {page_number:02d} returned {room_count:02d} listings"
+                        .format(page_number=page_number, room_count=room_count))
+                if flag == self.config.FLAGS_PRINT:
+                    # for FLAGS_PRINT, fetch one page and print it
+                    sys.exit(0)
+                if room_count < self.config.SEARCH_LISTINGS_ON_FULL_PAGE:
+                    # If a full page of listings is not returned by Airbnb,
+                    # this branch of the search is complete.
+                    logger.debug("Final page of listings for this search")
+                    break
+            # Log rectangle-level results
+            logger.info(("Results: {new_rooms} new rooms from {page_count} pages "
+                "for {room_type}, {g} guests, prices in [{p1}, {p2}]").format(
+                             room_type=room_type, g=str(guests),
+                             p1=str(price_range[0]),
+                             p2=str(price_range[1]),
+                             new_rooms=str(new_rooms),
+                             page_count=str(page_number)))
+            logger.info("\tquadtree_node {quadtree_node}".format(quadtree_node=str(quadtree_node)))
+            # log progress
+            self.log_progress(room_type, guests, price_range[0], price_range[1], quadtree_node)
+            return (new_rooms, page_number)
+        except UnicodeEncodeError:
+            logger.error("UnicodeEncodeError: set PYTHONIOENCODING=utf-8")
+            # if sys.version_info >= (3,):
+            #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
+            # else:
+            #    logger.info(s.encode('utf8'))
+            # unhandled at the moment
+        except Exception:
+            logger.exception("Exception in get_search_page_info_rectangle")
+            raise
+
+    def get_rectangle_from_quadtree_node(self, quadtree_node):
         try:
             rectangle = self.bounding_box
             for node in quadtree_node:
@@ -491,80 +576,25 @@ class ABSurveyByBoundingBox(ABSurvey):
                     rectangle = [mid_lat + blur, mid_lng + blur, s_lat - blur, w_lng - blur]
             return rectangle
         except:
-            logger.exception("Exception in get_rectangle_from_quadtree")
+            logger.exception("Exception in get_rectangle_from_quadtree_node")
             return None
 
-    def search_rectangle(self, room_type, guests, price_range, quadtree_node, flag):
-        """
-            rectangle is (n_lat, e_lng, s_lat, w_lng)
-            returns number of *new* rooms and number of pages tested
-        """
-        try:
-            rectangle = self.get_rectangle_from_quadtree(quadtree_node)
-            logger.info("-" * 70)
-            logger.info(("Searching rectangle: {room_type}, {guests} guests, prices in [{p1}, {p2}], "
-                        "\n\tquadtree_node {node}").format(room_type=room_type,
-                                            guests=str(guests),
-                                            p1=str(price_range[0]),
-                                            p2=str(price_range[1]),
-                                            node=str(quadtree_node)))
-            logger.debug("Rectangle: N={n:+.5f}, E={e:+.5f}, S={s:+.5f}, W={w:+.5f}".format(
-                n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
-            )
-            new_rooms = 0
-            room_total = 0
-            for page_number in range(1, self.config.SEARCH_MAX_PAGES + 1):
-                room_count = 0
-                params = {}
-                params["guests"] = str(guests)
-                params["page"] = str(page_number)
-                params["source"] = "filter"
-                params["room_types[]"] = room_type
-                params["sw_lat"] = str(rectangle[2])
-                params["sw_lng"] = str(rectangle[3])
-                params["ne_lat"] = str(rectangle[0])
-                params["ne_lng"] = str(rectangle[1])
-                params["search_by_map"] = str(True)
-                params["price_min"] = str(price_range[0])
-                params["price_max"] = str(price_range[1])
-                response = airbnb_ws.ws_request_with_repeats(self.config, self.config.URL_API_SEARCH_ROOT, params)
-                json = response.json()
-                for result in json["results_json"]["search_results"]:
-                    room_id = int(result["listing"]["id"])
-                    if room_id is not None:
-                        room_count += 1
-                        room_total += 1
-                        listing = self.listing_from_search_page_json(result, room_id, room_type)
-                        if listing is None:
-                            continue
-                        if listing.host_id is not None:
-                            listing.deleted = 0
-                            if flag == self.config.FLAGS_ADD:
-                                if listing.save(self.config.FLAGS_INSERT_NO_REPLACE):
-                                    new_rooms += 1
-                            elif flag == self.config.FLAGS_PRINT:
-                                print(room_type, listing.room_id)
-                logger.info("Page {page_number} returned {room_count} listings".format(page_number=page_number,
-                    room_count=room_count))
-                if flag == self.config.FLAGS_PRINT:
-                    # for FLAGS_PRINT, fetch one page and print it
-                    sys.exit(0)
-                if room_count < self.config.SEARCH_LISTINGS_ON_FULL_PAGE:
-                    # If a full page of listings is not returned by Airbnb,
-                    # this branch of the search is complete.
-                    logger.debug("Final page of listings for this search")
-                    break
-            return (new_rooms, page_number)
-        except UnicodeEncodeError:
-            logger.error("UnicodeEncodeError: set PYTHONIOENCODING=utf-8")
-            # if sys.version_info >= (3,):
-            #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
-            # else:
-            #    logger.info(s.encode('utf8'))
-            # unhandled at the moment
-        except Exception:
-            logger.exception("Exception in get_search_page_info_rectangle")
-            raise
+    def subtree_previously_completed(self, quadtree_node):
+        # Return if the child subtree of this node was completed
+        # in a previous survey
+        subtree_previously_completed = False
+        if len(quadtree_node) > 0 and self.logged_progress["quadtree"] is not None:
+            s_this_quadrant = ''.join(str(quadtree_node[i][j]) 
+                    for j in range(0,2)
+                    for i in range(0,len(quadtree_node)))
+            s_logged_progress = ''.join(str(self.logged_progress["quadtree"][i][j]) 
+                    for j in range(0,2)
+                    for i in range(0,len(quadtree_node)))
+            if int(s_this_quadrant) < int(s_logged_progress):
+                subtree_previously_completed = True
+                logger.debug("Subtree previously completed: {quadtree}".format(quadtree=quadtree_node))
+        return subtree_previously_completed
+
 
     def log_progress(self, room_type, guests, price_min, price_max, quadtree_node):
         try:
@@ -596,7 +626,8 @@ class ABSurveyByBoundingBox(ABSurvey):
             logger.debug("Progress logged")
             return True
         except Exception:
-            logger.exception("Exception in log_progress")
+            logger.warning("""Progress not logged: survey not affected, but
+                    resume will not be available if survey is truncated.""")
             return False
 
 
