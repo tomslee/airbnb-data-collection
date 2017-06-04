@@ -4,7 +4,12 @@
 
 The script scrapes the Airbnb web site to collect data about the shape of the company's business. No guarantees are made about the quality of data obtained using this script, statistically or about an individual page. So please check your results.
 
-Airbnb is making it increasingly difficult to scrape significant amounts of data from the site. I now have to run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services. If you would rather not make the attempt yourself, I will be happy to run collections for you when time allows.
+Sometimes the Airbnb site refuses repeated requests. I run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services. If you would rather not make the attempt yourself, I will be happy to run collections for you when time allows.
+
+## Prerequisites
+
+- Python 3.4 or later
+- PostgreSQL 9.5 or later (as the script uses "INSERT ... ON CONFLICT UPDATE")
 
 ## Using the script
 
