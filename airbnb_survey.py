@@ -28,6 +28,7 @@ class ABSurvey():
         self.search_area_id = None
         self.search_area_name = None
         self.set_search_area()
+        self.room_types = ["Private room", "Entire home/apt", "Shared room"]
 
         # Set up logging
         logger.setLevel(config.log_level)
@@ -247,7 +248,6 @@ class ABSurveyByBoundingBox(ABSurvey):
 
     def __init__(self, config, survey_id):
         super().__init__(config, survey_id)
-        self.room_types = ["Private room", "Entire home/apt", "Shared room"]
         self.get_logged_progress()
         self.get_bounding_box()
 
@@ -265,7 +265,7 @@ class ABSurveyByBoundingBox(ABSurvey):
             cur.close()
             conn.commit()
             if row is None:
-                logger.info("No progress logged for survey {}".format(survey_id))
+                logger.info("No progress logged for survey {}".format(self.survey_id))
                 self.logged_progress = None
             else:
                 logged_progress = {}
@@ -326,7 +326,7 @@ class ABSurveyByBoundingBox(ABSurvey):
         corners of the box.
         """
         try:
-            logger.info("-" * 70)
+            logger.info("=" * 70)
             logger.info("Survey {survey_id}, for {search_area_name}".format(
                 survey_id=self.survey_id, search_area_name=self.search_area_name
             ))
@@ -337,15 +337,17 @@ class ABSurveyByBoundingBox(ABSurvey):
             # quadtree_node holds the quadtree: each rectangle is
             # divided into 00 | 01 | 10 | 11, and the next level down adds
             # on another rectangle.
-            guests_start = 1
-            quadtree_node = []
-            room_types_start_index = 0
             price_increments = [0, 40, 60, 80, 100, 120,
                                 140, 180, 200, 300, 500,
                                 700, 1000, 1500, 50000]
             max_price = {"Private room": 500,
                          "Entire home/apt": 100000,
                          "Shared room": 500}
+            # set starting point 
+            guests_start = 1
+            quadtree_node = []
+            room_types_start_index = 0
+            price_start_index = 0
             # set starting point (for survey being resumed)
             if self.logged_progress is not None:
                 room_types_start_index = self.room_types.index(self.logged_progress["room_type"])
@@ -353,11 +355,10 @@ class ABSurveyByBoundingBox(ABSurvey):
                 price_start_index = price_increments.index(self.logged_progress["price_range"][0])
                 logger.info("""Restarting survey {survey_id} at room_type={room_type}, guests={guests}, price={price}
                         quadtree_node={quadtree_node}"""
-                        .format(survey_id=self.survey_id,
-                            room_type=self.room_types[room_types_start_index],
-                            guests=guests_start,
-                            price=price_increments[price_start_index],
+                        .format(survey_id=self.survey_id, room_type=self.room_types[room_types_start_index],
+                            guests=guests_start, price=price_increments[price_start_index],
                             quadtree_node = quadtree_node))
+            # Starting point set: now loop
             for room_type in self.room_types[room_types_start_index:]:
                 if room_type in ("Private room", "Shared room"):
                     max_guests = 4
@@ -375,6 +376,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                         progress["quadtree"] = quadtree_node
                         self.recurse_quadtree(
                             room_type, guests, price_range, quadtree_node, flag)
+                        # reset starting price
+                        price_start_index = 0
                 # reset the starting point so that (in the event of a resumed
                 # survey) the next room type gets all guest counts.
                 guests_start = 1
@@ -414,13 +417,13 @@ class ABSurveyByBoundingBox(ABSurvey):
                 return
 
             # Only search this node if it has not been previously searched
-            if (self.logged_progress["quadtree"] is None or
+            if (self.logged_progress is None or
                 len(quadtree_node) >= len(self.logged_progress["quadtree"])):
                 (new_rooms, page_count) = self.search_node(room_type, guests, price_range,
                                                            quadtree_node, flag)
                 # we are off and searching: set logged_progress to None so 
                 # future guests, prices etc don't get truncated
-                self.logged_progress["quadtree"] = None
+                self.logged_progress = None
             else:
                 logger.debug("Node previously searched: {quadtree}".format(quadtree=quadtree_node))
                 # if the logged_progress has more depth, recurse
@@ -429,8 +432,8 @@ class ABSurveyByBoundingBox(ABSurvey):
             # The max zoom is set in config, but decrease it by one for each guest
             # so that high guest counts don't zoom in (which turns out to generate
             # very few new rooms but take a lot of time)
-            # zoomable = len(quadtree_node) < max(1, (self.config.SEARCH_MAX_RECTANGLE_ZOOM - 2 * (guests - 1)))
-            zoomable = len(quadtree_node) < self.config.SEARCH_MAX_RECTANGLE_ZOOM
+            zoomable = len(quadtree_node) < max(1, (self.config.SEARCH_MAX_RECTANGLE_ZOOM - 2 * (guests - 1)))
+            # zoomable = len(quadtree_node) < self.config.SEARCH_MAX_RECTANGLE_ZOOM
             # If (new_rooms > 0 or page_count == self.config.SEARCH_MAX_PAGES) and zoomable:
             # zoom in if the search returned a full set of SEARCH_MAX_PAGES pages even 
             # if no rooms were new, as there may still be new rooms that show up at 
@@ -455,7 +458,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # the search of the quadtree below this node is complete: 
                 # remove the leaf element from the tree and return to go up a level
                 del quadtree_node[-1]
-            logger.info("Returning from recurse_quadtree for {}".format(quadtree_node))
+            logger.debug("Returning from recurse_quadtree for {}".format(quadtree_node))
             if flag == self.config.FLAGS_PRINT:
                 # for FLAGS_PRINT, fetch one page and print it
                 sys.exit(0)
@@ -475,12 +478,10 @@ class ABSurveyByBoundingBox(ABSurvey):
         try:
             rectangle = self.get_rectangle_from_quadtree_node(quadtree_node)
             logger.info("-" * 70)
-            logger.info(("Searching rectangle: {room_type}, {guests} guests, prices in [{p1}, {p2}], "
-                        "\n\tquadtree_node {node}").format(room_type=room_type,
-                                            guests=str(guests),
-                                            p1=str(price_range[0]),
-                                            p2=str(price_range[1]),
-                                            node=str(quadtree_node)))
+            logger.info("Searching rectangle: {room_type}, {guests} guests, prices in [{p1}, {p2}], "
+                .format(room_type=room_type, guests=str(guests),
+                        p1=str(price_range[0]), p2=str(price_range[1])))
+            logger.info("\tquadtree_node = {quadtree_node}".format(quadtree_node=str(quadtree_node)))
             logger.debug("Rectangle: N={n:+.5f}, E={e:+.5f}, S={s:+.5f}, W={w:+.5f}".format(
                 n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
             )
@@ -539,7 +540,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                              p2=str(price_range[1]),
                              new_rooms=str(new_rooms),
                              page_count=str(page_number)))
-            logger.info("\tquadtree_node {quadtree_node}".format(quadtree_node=str(quadtree_node)))
+            logger.debug("\tquadtree_node = {quadtree_node}".format(quadtree_node=str(quadtree_node)))
             # log progress
             self.log_progress(room_type, guests, price_range[0], price_range[1], quadtree_node)
             return (new_rooms, page_number)
@@ -639,7 +640,7 @@ class ABSurveyByNeighborhood(ABSurvey):
     """
 
     def search(self, flag):
-        logger.info("-" * 70)
+        logger.info("=" * 70)
         logger.info("Survey {survey_id}, for {search_area_name}".format(
             survey_id=self.survey_id, search_area_name=self.search_area_name
         ))
@@ -654,8 +655,7 @@ class ABSurveyByNeighborhood(ABSurvey):
             # is incomplete, and an additional search with no
             # neighborhood is useful
             neighborhoods = neighborhoods + [None]
-            for room_type in ("Private room",
-                              "Entire home/apt", "Shared room",):
+            for room_type in self.room_types:
                 logger.debug(
                     "Searching for %(rt)s by neighborhood",
                     {"rt": room_type})
@@ -824,17 +824,14 @@ class ABSurveyByZipcode(ABSurvey):
     """
 
     def search(self, flag):
-        logger.info("-" * 70)
+        logger.info("=" * 70)
         logger.info("Survey {survey_id}, for {search_area_name}".format(
             survey_id=self.survey_id, search_area_name=self.search_area_name
         ))
         ABSurvey.update_survey_entry(self, self.config.SEARCH_BY_ZIPCODE)
         logger.info("Searching by zipcode")
         zipcodes = self.get_zipcodes_from_search_area()
-        for room_type in (
-                "Private room",
-                "Entire home/apt",
-                "Shared room",):
+        for room_type in self.room_types:
             try:
                 i = 0
                 for zipcode in zipcodes:
