@@ -178,13 +178,20 @@ def add_survey_log_bb_table():
     try:
         sql = """
         create table survey_progress_log_bb (
-	survey_id integer primary key,
-	room_type varchar(255),
-	guests integer,
-	price_min float,
-	price_max float,
-	quadrant_node varchar(1024)
+	    survey_id integer primary key,
+	    room_type varchar(255),
+	    guests integer,
+	    price_min float,
+	    price_max float,
+	    quadtree_node varchar(1024),
+            last_modified timestamp without time zone default now()
+        )
         """
+        conn = connect()
+        cur = conn.cursor()
+        cur.execute(sql)
+        cur.close()
+        conn.commit()
 
 def fix_room_table():
     try:
