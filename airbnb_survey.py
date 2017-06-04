@@ -584,7 +584,7 @@ class ABSurveyByBoundingBox(ABSurvey):
         # Return if the child subtree of this node was completed
         # in a previous survey
         subtree_previously_completed = False
-        if len(quadtree_node) > 0 and self.logged_progress["quadtree"] is not None:
+        if len(quadtree_node) > 0 and self.logged_progress is not None:
             s_this_quadrant = ''.join(str(quadtree_node[i][j]) 
                     for j in range(0,2)
                     for i in range(0,len(quadtree_node)))
