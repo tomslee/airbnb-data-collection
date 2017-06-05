@@ -184,6 +184,7 @@ def add_survey_log_bb_table():
 	    price_min float,
 	    price_max float,
 	    quadtree_node varchar(1024),
+	    median_node text,
             last_modified timestamp without time zone default now()
         )
         """

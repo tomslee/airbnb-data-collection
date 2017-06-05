@@ -221,7 +221,8 @@ class ABSurveyByBoundingBox(ABSurvey):
     def get_logged_progress(self):
         try:
             sql = """
-            select room_type, guests, price_min, price_max, quadtree_node
+            select room_type, guests, price_min, price_max, 
+            quadtree_node, median_node
             from survey_progress_log_bb
             where survey_id = %s
             """
@@ -240,6 +241,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 logged_progress["guests"] = row[1]
                 logged_progress["price_range"] = [row[2], row[3]]
                 logged_progress["quadtree"] = eval(row[4])
+                logged_progress["median"] = eval(row[5])
                 logger.info( """Retrieved logged progress: {rt}, {g} guests, price {pmin}-{pmax}""".
                 format(rt = logged_progress["room_type"],
                     g=logged_progress["guests"], 
@@ -314,7 +316,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                          "Shared room": 500}
             # set starting point 
             guests_start = 1
-            quadtree_node = []
+            quadtree_node = [] # list of [0,0,1] etc coordinates
+            median_node = [] # median lat, long, price to define optimal quadrants
             room_types_start_index = 0
             price_start_index = 0
             # set starting point (for survey being resumed)
@@ -325,13 +328,13 @@ class ABSurveyByBoundingBox(ABSurvey):
                             quadtree_node = quadtree_node))
             # Starting point set: now loop
             for room_type in self.room_types[room_types_start_index:]:
-                self.recurse_quadtree(room_type, quadtree_node, flag)
+                self.recurse_quadtree(room_type, quadtree_node, median_node, flag)
         except Exception:
             logger.exception("Error")
         finally:
             ABSurvey.fini(self)
 
-    def recurse_quadtree(self, room_type, quadtree_node, flag):
+    def recurse_quadtree(self, room_type, quadtree_node, median_node, flag):
         """
         Recursive function to search for listings inside a rectangle.
         The actual search calls are done in search_node, and
@@ -367,11 +370,11 @@ class ABSurveyByBoundingBox(ABSurvey):
                         else:
                             del quadtree_node[-1]
                 return
-
             # Only search this node if it has not been previously searched
             if (self.logged_progress is None or
                 len(quadtree_node) >= len(self.logged_progress["quadtree"])):
-                (new_rooms, page_count) = self.search_node(room_type, quadtree_node, flag)
+                (new_rooms, page_count, median_leaf) = self.search_node(room_type, 
+                        quadtree_node, median_node, flag)
                 # we are off and searching: set logged_progress to None so 
                 # future guests, prices etc don't get truncated
                 self.logged_progress = None
@@ -391,15 +394,18 @@ class ABSurveyByBoundingBox(ABSurvey):
             # higher zoom levels.
             if page_count == self.config.SEARCH_MAX_PAGES and zoomable:
                 quadtree_node.append([])
+                median_node.append(median_leaf)
                 for int_leaf in range(8):
                     # append a node to the quadtree for a new level
                     quadtree_leaf = [int(i) 
                             for i in str(bin(int_leaf))[2:].zfill(3)]
                     quadtree_node[-1] = quadtree_leaf
-                    new_rooms = self.recurse_quadtree(room_type, quadtree_node, flag)
+                    new_rooms = self.recurse_quadtree(room_type, quadtree_node,
+                            median_node, flag)
                 # the search of the quadtree below this node is complete: 
                 # remove the leaf element from the tree and return to go up a level
                 del quadtree_node[-1]
+                del median_node[-1]
             logger.debug("Returning from recurse_quadtree for {}".format(quadtree_node))
             if flag == self.config.FLAGS_PRINT:
                 # for FLAGS_PRINT, fetch one page and print it
@@ -412,20 +418,27 @@ class ABSurveyByBoundingBox(ABSurvey):
             logger.exception("Error in recurse_quadtree")
             raise
 
-    def search_node(self, room_type, quadtree_node, flag):
+    def search_node(self, room_type, quadtree_node, median_node, flag):
         """
             returns number of *new* rooms and number of pages tested
         """
         try:
             logger.info("-" * 70)
-            rectangle = self.get_rectangle_from_quadtree_node(quadtree_node)
-            logger.info("Searching rectangle: {room_type} - {quadtree_node}"
+            rectangle = self.get_rectangle_from_quadtree_node(quadtree_node, median_node)
+            logger.info("Searching rectangle: {room_type} {quadtree_node}"
                     .format(room_type=room_type, quadtree_node=str(quadtree_node)))
             logger.debug("Rectangle: N={n:+.5f}, E={e:+.5f}, S={s:+.5f}, W={w:+.5f}".format(
                 n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
             )
             new_rooms = 0
             room_total = 0
+            # median_lists are collected from results on each page and used to
+            # calculate the median values, which will be used to divide the 
+            # volume into optimal "quadrants".
+            median_lists = {}
+            median_lists["latitude"] = []
+            median_lists["longitude"] = []
+            median_lists["price"] = []
             for page_number in range(1, self.config.SEARCH_MAX_PAGES + 1):
                 room_count = 0
                 # set up the parameters for the request
@@ -451,6 +464,9 @@ class ABSurveyByBoundingBox(ABSurvey):
                         room_count += 1
                         room_total += 1
                         listing = self.listing_from_search_page_json(result, room_id, room_type)
+                        median_lists["latitude"].append(listing.latitude)
+                        median_lists["longitude"].append(listing.longitude)
+                        median_lists["price"].append(listing.price)
                         if listing is None:
                             continue
                         if listing.host_id is not None:
@@ -479,9 +495,18 @@ class ABSurveyByBoundingBox(ABSurvey):
                              p2=str(rectangle[5]),
                              new_rooms=str(new_rooms), page_count=str(page_number)))
             logger.debug("\tquadtree_node = {quadtree_node}".format(quadtree_node=str(quadtree_node)))
+            # calculate medians
+            if room_count > 0:
+                median_lat = sorted(median_lists["latitude"])[int(len(median_lists["latitude"])/2)]
+                median_lng = sorted(median_lists["longitude"])[int(len(median_lists["longitude"])/2)]
+                median_price = sorted(median_lists["price"])[int(len(median_lists["price"])/2)]
+                median_leaf = [median_lat, median_lng, median_price]
+            else:
+                # values not needed, but we need to fill in an item anyway
+                median_leaf = [0, 0, 0]
             # log progress
-            self.log_progress(room_type, None, None, None, quadtree_node)
-            return (new_rooms, page_number)
+            self.log_progress(room_type, None, None, None, quadtree_node, median_node)
+            return (new_rooms, page_number, median_leaf)
         except UnicodeEncodeError:
             logger.error("UnicodeEncodeError: set PYTHONIOENCODING=utf-8")
             # if sys.version_info >= (3,):
@@ -493,18 +518,22 @@ class ABSurveyByBoundingBox(ABSurvey):
             logger.exception("Exception in get_search_page_info_rectangle")
             raise
 
-    def get_rectangle_from_quadtree_node(self, quadtree_node):
+    def get_rectangle_from_quadtree_node(self, quadtree_node, median_node):
         # rectangle is (n_lat, e_lng, s_lat, w_lng)
         try:
             price_cut = 6 # divide price axis at 1 / price_cut each time
             rectangle = self.bounding_box[0:4]
             price_axis = self.bounding_box[4:]
-            for node in quadtree_node:
+            for node, medians in zip(quadtree_node, median_node):
                 [n_lat, e_lng, s_lat, w_lng] = rectangle
+                [price_min, price_max] = price_axis
                 blur = abs(n_lat - s_lat) * self.config.SEARCH_RECTANGLE_EDGE_BLUR
                 # find the midpoints of the rectangle
-                mid_lat = (n_lat + s_lat)/2.0
-                mid_lng = (e_lng + w_lng)/2.0
+                # mid_lat = (n_lat + s_lat)/2.0
+                # mid_lng = (e_lng + w_lng)/2.0
+                mid_lat = medians[0]
+                mid_lng = medians[1]
+                mid_price = medians[2]
                 # overlap quadrants to ensure coverage at high zoom levels
                 # Airbnb max zoom (18) is about 0.004 on a side.
                 rectangle = []
@@ -516,22 +545,14 @@ class ABSurveyByBoundingBox(ABSurvey):
                     rectangle = [mid_lat + blur, e_lng + blur, s_lat - blur, mid_lng - blur]
                 elif node[0:2]==[1,1]: # SW
                     rectangle = [mid_lat + blur, mid_lng + blur, s_lat - blur, w_lng - blur]
-            for node in quadtree_node:
-                [price_min, price_max] = price_axis
-                # divide price axis at 1 / price_cut each time
-                # samples: max=10000, price_cut=4
-                # samples: max=1000,  price_cut=3
-                # samples: max=100,   price_cut=2
-                # samples: max=10,    price_cut=1
-                price_cut = max(1 + math.log(price_max, 10), 1.5)
-                price_mid = price_min + int((price_max - price_min)/price_cut)
+                # price
                 price_axis = []
                 if node[2] == 0:
-                    price_axis = [price_min, price_mid]
+                    price_axis = [price_min, mid_price]
                 else:
-                    price_axis = [price_mid, price_max]
+                    price_axis = [mid_price, price_max]
             rectangle = rectangle + price_axis
-            logger.info("Rectangle calculated: {rect}".format(rect=rectangle))
+            logger.debug("Rectangle calculated: {rect}".format(rect=rectangle))
             return rectangle
         except:
             logger.exception("Exception in get_rectangle_from_quadtree_node")
@@ -554,15 +575,18 @@ class ABSurveyByBoundingBox(ABSurvey):
         return subtree_previously_completed
 
 
-    def log_progress(self, room_type, guests, price_min, price_max, quadtree_node):
+    def log_progress(self, room_type, guests, price_min, price_max,
+            quadtree_node, median_node):
+        # TODO resume failing: need to read in median properly
         try:
             # This upsert statement requires PostgreSQL 9.5
             # Convert the quadrant to a string with repr() before storing it
             sql = """
             insert into survey_progress_log_bb 
-            (survey_id, room_type, guests, price_min, price_max, quadtree_node)
+            (survey_id, room_type, guests, 
+                price_min, price_max, quadtree_node, median_node)
             values 
-            (%s, %s, %s, %s, %s, %s)
+            (%s, %s, %s, %s, %s, %s, %s)
             on conflict ON CONSTRAINT survey_progress_log_bb_pkey
             do update
                 set room_type = %s
@@ -570,14 +594,17 @@ class ABSurveyByBoundingBox(ABSurvey):
                 , price_min = %s
                 , price_max = %s
                 , quadtree_node = %s
+                , median_node = %s
                 , last_modified = now()
             where survey_progress_log_bb.survey_id = %s
             """
             conn = self.config.connect()
             cur = conn.cursor()
             cur.execute(sql, (self.survey_id, room_type, 
-                guests, price_min, price_max, repr(quadtree_node),
-                room_type, guests, price_min, price_max, repr(quadtree_node),
+                guests, price_min, price_max, 
+                repr(quadtree_node), repr(median_node),
+                room_type, guests, price_min, price_max, 
+                repr(quadtree_node), repr(median_node),
                 self.survey_id))
             cur.close()
             conn.commit()
@@ -586,6 +613,8 @@ class ABSurveyByBoundingBox(ABSurvey):
         except Exception:
             logger.warning("""Progress not logged: survey not affected, but
                     resume will not be available if survey is truncated.""")
+            cur.close()
+            conn.rollback()
             return False
 
 
