@@ -20,14 +20,6 @@ import airbnb_ws
 logger = logging.getLogger()
 
 
-# ---------------------------------------------------------------------------- 
-# TODO: these functions should be moved into one of the survey classes. I just
-# haven't done it.
-# ---------------------------------------------------------------------------- 
-
-
-
-
 class ABSurvey():
 
     def __init__(self, config, survey_id):
@@ -36,9 +28,10 @@ class ABSurvey():
         self.search_area_id = None
         self.search_area_name = None
         self.set_search_area()
+        self.room_types = ["Private room", "Entire home/apt", "Shared room"]
 
         # Set up logging
-        logger.setLevel(logging.INFO)
+        logger.setLevel(config.log_level)
         # create a file handler
         logfile = "survey_{survey_id}.log".format(survey_id=self.survey_id)
         filelog_handler = logging.FileHandler(logfile, encoding="utf-8")
@@ -46,7 +39,7 @@ class ABSurvey():
         filelog_handler.setFormatter(filelog_formatter)
         # create a console handler
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(config.log_level)
         ch_formatter = logging.Formatter('%(levelname)-8s%(message)s')
         console_handler.setFormatter(ch_formatter)
 
@@ -253,6 +246,74 @@ class ABSurveyByBoundingBox(ABSurvey):
     boxes: recursively searching rectangles.
     """
 
+    def __init__(self, config, survey_id):
+        super().__init__(config, survey_id)
+        self.get_logged_progress()
+        self.get_bounding_box()
+
+    def get_logged_progress(self):
+        try:
+            sql = """
+            select room_type, guests, price_min, price_max, quadtree_node
+            from survey_progress_log_bb
+            where survey_id = %s
+            """
+            conn = self.config.connect()
+            cur = conn.cursor()
+            cur.execute(sql, (self.survey_id,))
+            row = cur.fetchone()
+            cur.close()
+            conn.commit()
+            if row is None:
+                logger.info("No progress logged for survey {}".format(self.survey_id))
+                self.logged_progress = None
+            else:
+                logged_progress = {}
+                logged_progress["room_type"] = row[0]
+                logged_progress["guests"] = row[1]
+                logged_progress["price_range"] = [row[2], row[3]]
+                logged_progress["quadtree"] = eval(row[4])
+                logger.info( """Retrieved logged progress: {rt}, {g} guests, price {pmin}-{pmax}""".
+                format(rt = logged_progress["room_type"],
+                    g=logged_progress["guests"], 
+                    pmin=logged_progress["price_range"][0], 
+                    pmax=logged_progress["price_range"][1]))
+                logger.info("\tquadtree node {quadtree}"
+                        .format(quadtree=repr(logged_progress["quadtree"])))
+                self.logged_progress = logged_progress
+        except Exception:
+            logger.exception("Exception in get_progress: setting logged progress to None")
+            self.logged_progress = None
+
+    def get_bounding_box(self):
+        try:
+            # Get the bounding box
+            conn = self.config.connect()
+            cur = conn.cursor()
+            cur.execute("""
+                        select bb_n_lat, bb_e_lng, bb_s_lat, bb_w_lng
+                        from search_area sa join survey s
+                        on sa.search_area_id = s.search_area_id
+                        where s.survey_id = %s""", (self.survey_id,))
+            # result comes back as a tuple. We want it mutable later, so
+            # convert to a list [n_lat, e_lng, s_lat, w_lng]
+            self.bounding_box = list(cur.fetchone())
+            cur.close()
+            # Validate the bounding box
+            if None in self.bounding_box:
+                logger.error("Invalid bounding box: contains 'None'")
+                return
+            if self.bounding_box[0] <= self.bounding_box[2]:
+                logger.error("Invalid bounding box: n_lat must be > s_lat")
+                return
+            if self.bounding_box[1] <= self.bounding_box[3]:
+                logger.error("Invalid bounding box: e_lng must be > w_lng")
+                return
+            logger.info("Bounding box: " + str(self.bounding_box))
+        except Exception:
+            logger.exception("Exception in set_bounding_box")
+            self.bounding_box = None
+
     def search(self, flag):
         """
         Initialize bounding box search.
@@ -265,7 +326,7 @@ class ABSurveyByBoundingBox(ABSurvey):
         corners of the box.
         """
         try:
-            logger.info("-" * 70)
+            logger.info("=" * 70)
             logger.info("Survey {survey_id}, for {search_area_name}".format(
                 survey_id=self.survey_id, search_area_name=self.search_area_name
             ))
@@ -501,7 +562,7 @@ class ABSurveyByNeighborhood(ABSurvey):
     """
 
     def search(self, flag):
-        logger.info("-" * 70)
+        logger.info("=" * 70)
         logger.info("Survey {survey_id}, for {search_area_name}".format(
             survey_id=self.survey_id, search_area_name=self.search_area_name
         ))
@@ -516,8 +577,7 @@ class ABSurveyByNeighborhood(ABSurvey):
             # is incomplete, and an additional search with no
             # neighborhood is useful
             neighborhoods = neighborhoods + [None]
-            for room_type in ("Private room",
-                              "Entire home/apt", "Shared room",):
+            for room_type in self.room_types:
                 logger.debug(
                     "Searching for %(rt)s by neighborhood",
                     {"rt": room_type})
@@ -687,17 +747,14 @@ class ABSurveyByZipcode(ABSurvey):
     """
 
     def search(self, flag):
-        logger.info("-" * 70)
+        logger.info("=" * 70)
         logger.info("Survey {survey_id}, for {search_area_name}".format(
             survey_id=self.survey_id, search_area_name=self.search_area_name
         ))
         ABSurvey.update_survey_entry(self, self.config.SEARCH_BY_ZIPCODE)
         logger.info("Searching by zipcode")
         zipcodes = self.get_zipcodes_from_search_area()
-        for room_type in (
-                "Private room",
-                "Entire home/apt",
-                "Shared room",):
+        for room_type in self.room_types:
             try:
                 i = 0
                 for zipcode in zipcodes:

@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 
 logger = logging.getLogger()
+logger.info("Logger got")
 
 class ABConfig():
 
@@ -20,6 +21,10 @@ class ABConfig():
         self.config_file = None
         if args is not None:
             self.config_file=args.config_file
+            if args.verbose:
+                self.log_level = logging.DEBUG
+            else:
+                self.log_level = logging.INFO
         self.connection = None
         self.FLAGS_ADD = 1
         self.FLAGS_PRINT = 9
