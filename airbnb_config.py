@@ -19,11 +19,13 @@ class ABConfig():
         """ Read the configuration file <username>.config to set up the run
         """
         self.config_file = None
+        self.log_level = logging.INFO
         if args is not None:
             self.config_file=args.config_file
-            if args.verbose:
-                self.log_level = logging.DEBUG
-            else:
+            try:
+                if args.verbose:
+                    self.log_level = logging.DEBUG
+            except:
                 self.log_level = logging.INFO
         self.connection = None
         self.FLAGS_ADD = 1

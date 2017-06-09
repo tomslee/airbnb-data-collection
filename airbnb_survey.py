@@ -242,13 +242,16 @@ class ABSurveyByBoundingBox(ABSurvey):
                 logged_progress["price_range"] = [row[2], row[3]]
                 logged_progress["quadtree"] = eval(row[4])
                 logged_progress["median"] = eval(row[5])
-                logger.info( """Retrieved logged progress: {rt}, {g} guests, price {pmin}-{pmax}""".
+                logger.info( """Retrieved logged progress from previous run:
+                        {rt}, {g} guests, price {pmin}-{pmax}""".
                 format(rt = logged_progress["room_type"],
                     g=logged_progress["guests"], 
                     pmin=logged_progress["price_range"][0], 
                     pmax=logged_progress["price_range"][1]))
                 logger.info("\tquadtree node {quadtree}"
                         .format(quadtree=repr(logged_progress["quadtree"])))
+                logger.info("\tmedian node {median}"
+                        .format(median=repr(logged_progress["median"])))
                 self.logged_progress = logged_progress
         except Exception:
             logger.exception("Exception in get_progress: setting logged progress to None")
@@ -354,6 +357,7 @@ class ABSurveyByBoundingBox(ABSurvey):
         iterated over most rapidly.
         """
         try:
+            median_leaf = self.logged_progress["median"][-1]
             if self.subtree_previously_completed(quadtree_node):
                 # go to the next subtree 
                 #TODO: use the same technique as the loop, below
@@ -521,7 +525,6 @@ class ABSurveyByBoundingBox(ABSurvey):
     def get_rectangle_from_quadtree_node(self, quadtree_node, median_node):
         # rectangle is (n_lat, e_lng, s_lat, w_lng)
         try:
-            price_cut = 6 # divide price axis at 1 / price_cut each time
             rectangle = self.bounding_box[0:4]
             price_axis = self.bounding_box[4:]
             for node, medians in zip(quadtree_node, median_node):
