@@ -492,7 +492,6 @@ class ABSurveyByBoundingBox(ABSurvey):
         where survey_id = 
         """
         pass
-)
 
 
 class ABSurveyByNeighborhood(ABSurvey):
