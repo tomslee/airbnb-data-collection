@@ -516,6 +516,10 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # make the http request
                 response = airbnb_ws.ws_request_with_repeats(self.config, self.config.URL_API_SEARCH_ROOT, params)
                 # process the response
+                if response is None:
+                    logger.warning("No response received from request despite multiple attempts: {p}"
+                            .format(p=params))
+                    continue
                 json = response.json()
                 for result in json["results_json"]["search_results"]:
                     room_id = int(result["listing"]["id"])
