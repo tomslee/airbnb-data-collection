@@ -25,6 +25,8 @@ def ws_request_with_repeats(config, url, params=None):
                                ": trying again")
             elif response.status_code == requests.codes.ok:
                 return response
+        except (SystemExit, KeyboardInterrupt):
+            raise
         except AttributeError:
             logger.exception("AttributeError retrieving page")
         except Exception as ex:
@@ -73,20 +75,23 @@ def ws_request(config, url, params=None):
         if response.status_code == 503:
             if http_proxy:
                 logger.warning("503 error for proxy " + http_proxy)
-            else:
-                logger.warning("503 error (no proxy)")
-            if random.choice([True, False]):
-                logger.info("Removing " + http_proxy + " from proxy list.")
-                config.HTTP_PROXY_LIST.remove(http_proxy)
-                if len(config.HTTP_PROXY_LIST) < 1:
+                if random.choice([True, False]):
+                    logger.warning(
+                        "Removing {http_proxy} from proxy list. {n} proxies remaining"
+                        .format( http_proxy=http_proxy,
+                            n=len(config.HTTP_PROXY_LIST)))
+                    config.HTTP_PROXY_LIST.remove(http_proxy)
+                if len(config.HTTP_PROXY_LIST) == 0:
                     # fill proxy list again, wait a long time, then restart
                     logger.error("No proxies in list. Re-initializing.")
-                    time.sleep(config.RE_INIT_SLEEP_TIME)  # be nice
+                    time.sleep(config.RE_INIT_SLEEP_TIME)  
                     config = ABConfig()
+            else:
+                logger.error("Quitting on 503 error (no proxies left or not using proxies)")
+                sys.exit()
         return response
-    except KeyboardInterrupt:
-        logger.error("Cancelled by user")
-        sys.exit()
+    except (SystemExit, KeyboardInterrupt):
+        raise
     except requests.exceptions.ConnectionError:
         # For requests error and exceptions, see
         # http://docs.python-requests.org/en/latest/user/quickstart/

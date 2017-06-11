@@ -472,11 +472,8 @@ def main():
             survey.search(ab_config.FLAGS_PRINT)
         else:
             parser.print_help()
-    except KeyboardInterrupt:
+    except (SystemExit, KeyboardInterrupt):
         sys.exit()
-    except SystemExit:
-        # sys.exit() called: don't log a stack trace
-        pass
     except Exception:
         logger.exception("Top level exception handler: quitting.")
         sys.exit(0)
