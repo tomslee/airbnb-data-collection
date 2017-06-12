@@ -382,7 +382,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # reset the starting point so that (in the event of a resumed
                 # survey) the next room type gets all guest counts.
                 guests_start = 1
-            self.fini(self)
+            self.fini()
         except (SystemExit, KeyboardInterrupt):
             raise
         except Exception:
