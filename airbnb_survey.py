@@ -63,7 +63,7 @@ class ABSurvey():
                 where s.survey_id = %s""", (self.survey_id,))
             (self.search_area_id, self.search_area_name) = cur.fetchone()
             cur.close()
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SystemExit):
             cur.close()
             raise
         except Exception:

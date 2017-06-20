@@ -141,7 +141,6 @@ class ABListing():
                         return False
         except psycopg2.OperationalError:
             # connection closed
-            del(self.config.connection)
             logger.error("Operational error (connection closed): resuming")
             del(self.config.connection)
         except psycopg2.DatabaseError as de:
@@ -158,8 +157,8 @@ class ABListing():
             self.config.connection.conn.rollback()
             logger.error("Database error: " + str(self.room_id))
             logger.error("Diagnostics " + pge.diag.message_primary)
-        except KeyboardInterrupt:
-            self.config.connection.rollback()
+            del(self.config.connection)
+        except (KeyboardInterrupt, SystemExit):
             raise
         except UnicodeEncodeError as uee:
             logger.error("UnicodeEncodeError Exception at " +
@@ -248,8 +247,7 @@ class ABListing():
                 return True
             else:
                 return False
-        except KeyboardInterrupt:
-            logger.error("Keyboard interrupt")
+        except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as ex:
             logger.exception("Room " + str(self.room_id) +
@@ -736,7 +734,7 @@ class ABListing():
             elif flag == self.config.FLAGS_PRINT:
                 self.print_from_web_site()
             return True
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SystemExit):
             raise
         except IndexError:
             logger.exception("Web page has unexpected structure.")
