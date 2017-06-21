@@ -21,9 +21,12 @@ class ABConfig():
         self.config_file = None
         if args is not None:
             self.config_file=args.config_file
-            if args.verbose:
-                self.log_level = logging.DEBUG
-            else:
+            try:
+                if args.verbose:
+                    self.log_level = logging.DEBUG
+                else:
+                    self.log_level = logging.INFO
+            except:
                 self.log_level = logging.INFO
         self.connection = None
         self.FLAGS_ADD = 1
