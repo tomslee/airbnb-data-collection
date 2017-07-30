@@ -28,11 +28,11 @@ This was implemented initially to run bounding-box surveys for countries (maximu
 
 ### Installing and upgrading the database schema
 
-The airbnb.py script works with a PostgreSQL database. You need to have the PostGIS extension installed. The schema is in the two files `postgresql/schema.sql` and `postgresql/functions.sql`. You need to run those to create the database tables to start with (assuming both your user and database are named `airbnb`).
+The airbnb.py script works with a PostgreSQL database. You need to have the PostGIS extension installed. The schema is in the file `postgresql/schema_current.sql`. You need to run that file to create the database tables to start with (assuming both your user and database are named `airbnb`).
 
-    psql --user airbnb airbnb < postgresql/schema.sql
-    psql --user airbnb airbnb < postgresql/functions.sql
-    python schema_update.py
+For example, if you use psql:
+
+    psql --user airbnb airbnb < postgresql/schema_current.sql
 
 ### Preparing to run a survey
 
