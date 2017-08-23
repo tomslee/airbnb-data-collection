@@ -105,7 +105,7 @@ Search by bounding box does a recursive geographical search, breaking a bounding
 
     http://www.mapdevelopers.com/geocode_bounding_box.php
 
-Then you can update the search_are table with a statement like this:
+Then you can update the `search_area` table with a statement like this:
 
 ```
 UPDATE search_area
