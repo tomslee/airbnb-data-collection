@@ -159,6 +159,8 @@ def write_html_file(survey_list, city_views, survey_counts):
         s += "</p>\n"
         s += "<p><a href=\"https://s3.amazonaws.com/{bucket}/{city_bar}.zip\">Download zip file</a></p>\n".format(
             city_bar=city_bar, bucket=AWS_S3_BUCKET)
+        s += "<p><a href=\"https://s3.amazonaws.com/{bucket}/{city_bar}.pdf\">Download pdf file</a></p>\n".format(
+            city_bar=city_bar, bucket=AWS_S3_BUCKET)
         s += "</dd>\n"
         html += s
         logging.info("City {0} linked.".format(city))
@@ -185,11 +187,13 @@ def zip_csv_files(city_views, s3_dir):
             continue
 
 
-def upload_zip_files(city_views, s3_dir):
+def upload_files(city_views, survey_list, s3_dir):
     logging.info("-" * 70)
     logging.info("Uploading zip files...")
     s3 = boto3.resource('s3')
     logging.info("Connected to S3...")
+    report_dir = "reports"
+    map_dir = "../airbnb-ipython-notebooks/notebooks/maps"
     for city in city_views:
         city_bar = city.replace(" ", "_").lower()
         zip_file = os.path.join(s3_dir, city_bar + ".zip")
@@ -197,9 +201,24 @@ def upload_zip_files(city_views, s3_dir):
             key = city_bar + ".zip"
             s3.Object(AWS_S3_BUCKET, key).put(Body=open(zip_file, 'rb'))
             s3.Object(AWS_S3_BUCKET, key).Acl().put(ACL='public-read')
-            # logging.info("\tCity {0} uploaded.".format(city_bar))
-            logging.info("\tCity {0} uploaded.".format(zip_file))
-
+            logging.info("\tUploaded {0}.".format(zip_file))
+        pdf_file = os.path.join(report_dir, "Airbnb City Notebook " + city + ".pdf")
+        if os.path.isfile(pdf_file):
+            key = city_bar + ".pdf"
+            s3.Object(AWS_S3_BUCKET, key).put(Body=open(pdf_file, 'rb'))
+            s3.Object(AWS_S3_BUCKET, key).Acl().put(ACL='public-read')
+            logging.info("\tUploaded {0}.".format(pdf_file))
+        for survey in survey_list:
+            (survey_id, city_name, city_abbrev, survey_date, comment) = survey
+            if city_name == city:
+                html_file = os.path.join(map_dir,
+                "{city}_{survey_id}.html".format(city=city, survey_id=survey_id))
+                logging.info("Inspecting {0}".format(html_file))
+                if os.path.isfile(html_file):
+                    key = city_bar + ".html"
+                    s3.Object(AWS_S3_BUCKET, key).put(Body=open(html_file, 'rb'))
+                    s3.Object(AWS_S3_BUCKET, key).Acl().put(ACL='public-read')
+                    logging.info("\tUploaded {0}.".format(html_file))
 
 def main():
     ab_config = ABConfig()
@@ -208,9 +227,9 @@ def main():
     logging.debug(city_views)
     s3_dir = "s3_files"
     survey_counts = write_csv_files(ab_config, survey_list, city_views, s3_dir)
-    write_html_file(survey_list, city_views, survey_counts)
     zip_csv_files(city_views, s3_dir)
-    upload_zip_files(city_views, s3_dir)
+    upload_files(city_views, survey_list, s3_dir)
+    write_html_file(survey_list, city_views, survey_counts)
 
 
 if __name__ == "__main__":

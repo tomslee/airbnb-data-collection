@@ -668,9 +668,11 @@ class ABSurveyByBoundingBox(ABSurvey):
             conn.commit()
             logger.debug("Progress logged")
             return True
-        except Exception:
+        except Exception as e:
             logger.warning("""Progress not logged: survey not affected, but
                     resume will not be available if survey is truncated.""")
+            logger.exception("Exception in  log_progress: {e}".format(e=type(e)))
+            conn.close()
             return False
 
 
