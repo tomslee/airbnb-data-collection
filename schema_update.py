@@ -177,22 +177,41 @@ def fix_version_table():
 def add_survey_log_bb_table():
     try:
         sql = """
-        create table survey_progress_log_bb (
-	    survey_id integer primary key,
-	    room_type varchar(255),
-	    guests integer,
-	    price_min float,
-	    price_max float,
-	    quadtree_node varchar(1024),
-	    median_node text,
-            last_modified timestamp without time zone default now()
-        )
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='survey_progress_log_bb' and column_name='survey_id'
         """
         conn = connect()
         cur = conn.cursor()
         cur.execute(sql)
+        test_survey_id = cur.fetchone()[0]
+        if test_survey_id:
+            logger.info("Check: survey_progress_log_bb table already has survey_id column")
         cur.close()
         conn.commit()
+    except psycopg2.Error as e:
+        if confirm(prompt='Create table "survey_progress_log_bb"?', resp=False):
+            sql = """
+            create table survey_progress_log_bb (
+	        survey_id integer primary key,
+	        room_type varchar(255),
+	        guests integer,
+	        price_min float,
+	        price_max float,
+	        quadtree_node varchar(1024),
+                last_modified timestamp without time zone default now(),
+	        median_node text
+            )
+            """
+            conn = connect()
+            cur = conn.cursor()
+            cur.execute(sql)
+            cur.close()
+            conn.commit()
+        else:
+            print("Table 'room' not created")
+    except:
+        logger.info("Table survey_progress_log_bb already exists.")
 
 def fix_room_table():
     try:
@@ -301,6 +320,7 @@ def main():
     init()
     fix_version_table()
     fix_room_table()
+    add_survey_log_bb_table()
 
 
 if __name__ == "__main__":

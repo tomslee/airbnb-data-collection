@@ -25,6 +25,8 @@ class ABConfig():
             try:
                 if args.verbose:
                     self.log_level = logging.DEBUG
+                else:
+                    self.log_level = logging.INFO
             except:
                 self.log_level = logging.INFO
         self.connection = None
@@ -43,6 +45,8 @@ class ABConfig():
         self.SEARCH_BY_ZIPCODE = 'zipcode'
         self.SEARCH_BY_BOUNDING_BOX = 'bounding box'
         self.SEARCH_LISTINGS_ON_FULL_PAGE = 18
+        self.HTTP_PROXY_LIST = []
+        self.HTTP_PROXY_LIST_COMPLETE = []
 
         try:
             config = configparser.ConfigParser()
@@ -54,9 +58,9 @@ class ABConfig():
                 else:
                     username = os.environ['USER']
                 self.config_file = username + ".config"
-            logger.info("Reading configuration file " + self.config_file)
+            logging.info("Reading configuration file " + self.config_file)
             if not os.path.isfile(self.config_file):
-                logger.error("Configuration file " + self.config_file + " not found.")
+                logging.error("Configuration file " + self.config_file + " not found.")
                 sys.exit()
             config.read(self.config_file)
 
@@ -77,6 +81,8 @@ class ABConfig():
             except Exception:
                 logger.warning("No proxy_list in " + config_file + ": not using proxies")
                 self.HTTP_PROXY_LIST = []
+            self.HTTP_PROXY_LIST_COMPLETE = list(self.HTTP_PROXY_LIST)
+            logging.info("Complete proxy list has {p} proxies".format(p=len(self.HTTP_PROXY_LIST_COMPLETE)))
             try:
                 self.USER_AGENT_LIST = config["NETWORK"]["user_agent_list"].split(",,")
                 self.USER_AGENT_LIST = [x.strip() for x in self.USER_AGENT_LIST]
@@ -103,8 +109,8 @@ class ABConfig():
             logger.exception("Failed to read config file properly")
             raise
 
-    # get a database connection
     def connect(self):
+    # get a database connection
         """ Return a connection to the database"""
         try:
             if (not hasattr(self, "connection") or

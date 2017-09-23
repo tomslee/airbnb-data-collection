@@ -2,7 +2,8 @@
 # ============================================================================
 # Tom Slee, 2013--2017.
 #
-# An ABListing represents and individual Airbnb listing
+# Functions for making and handling requests from the Airbnb web site
+# TODO: Make this into a class
 # ============================================================================
 import logging
 import sys
@@ -17,27 +18,27 @@ logger = logging.getLogger(__name__)
 
 def ws_request_with_repeats(config, url, params=None):
     # Return None on failure
-    for attempt in range(config.MAX_CONNECTION_ATTEMPTS):
+    for attempt_id in range(config.MAX_CONNECTION_ATTEMPTS):
         try:
-            response = ws_request(config, url, params)
+            response = ws_request(config, url, attempt_id, params)
             if response is None:
-                logger.warning("Request failure " + str(attempt + 1) +
-                               ": trying again")
+                continue
             elif response.status_code == requests.codes.ok:
                 return response
+        except (SystemExit, KeyboardInterrupt):
+            raise
         except AttributeError:
             logger.exception("AttributeError retrieving page")
         except Exception as ex:
             logger.error("Failed to retrieve web page " + url)
             logger.exception("Exception retrieving page: " + str(type(ex)))
-            # logger.error("Exception type: " + type(e).__name__)
             # Failed
     return None
 
 
-def ws_request(config, url, params=None):
+def ws_request(config, url, attempt_id, params=None):
     """
-    Individual web request: returns a response object
+    Individual web request: returns a response object or None on failure
     """
     try:
         # wait
@@ -72,49 +73,58 @@ def ws_request(config, url, params=None):
                                 headers=headers, proxies=proxies)
         if response.status_code == 503:
             if http_proxy:
-                logger.warning("503 error for proxy " + http_proxy)
-            else:
-                logger.warning("503 error (no proxy)")
-            if random.choice([True, False]):
-                logger.info("Removing " + http_proxy + " from proxy list.")
-                config.HTTP_PROXY_LIST.remove(http_proxy)
-                if len(config.HTTP_PROXY_LIST) < 1:
+                logger.warning("HTTP 503 error from web site: IP address {a} blocked"
+                    .format(a=http_proxy))
+                if len(config.HTTP_PROXY_LIST) > 0:
+                    # randomly remove the proxy from the list, with probability 50%
+                    if random.choice([True, False]):
+                        config.HTTP_PROXY_LIST.remove(http_proxy)
+                        logger.warning(
+                            "Removing {http_proxy} from proxy list; {n} of {p} remain."
+                            .format( http_proxy=http_proxy,
+                                n=len(config.HTTP_PROXY_LIST),
+                                p=len(config.HTTP_PROXY_LIST_COMPLETE)))
+                    else:
+                        logger.warning(
+                            "Not removing {http_proxy} from proxy list this time; still {n} of {p}."
+                            .format( http_proxy=http_proxy,
+                                n=len(config.HTTP_PROXY_LIST),
+                                p=len(config.HTTP_PROXY_LIST_COMPLETE)))
+                if len(config.HTTP_PROXY_LIST) == 0:
                     # fill proxy list again, wait a long time, then restart
-                    logger.error("No proxies in list. Re-initializing.")
-                    time.sleep(config.RE_INIT_SLEEP_TIME)  # be nice
-                    config = ABConfig()
+                    logger.warning("No proxies remain. Resetting proxy list and waiting {m} minutes."
+                        .format(m=(config.RE_INIT_SLEEP_TIME / 60.0)))
+                    config.HTTP_PROXY_LIST = list(config.HTTP_PROXY_LIST_COMPLETE)
+                    time.sleep(config.RE_INIT_SLEEP_TIME)
+                    config.REQUEST_SLEEP += 1.0
+                    logger.warning("Adding one second to request sleep time. Now {s}"
+                        .format(s=config.REQUEST_SLEEP))
+            else:
+                logger.warning("HTTP 503 error from web site: IP address blocked. Waiting {m} minutes."
+                        .format(m=(config.RE_INIT_SLEEP_TIME / 60.0)))
+                time.sleep(config.RE_INIT_SLEEP_TIME)
+                config.REQUEST_SLEEP += 1.0
         return response
-    except KeyboardInterrupt:
-        logger.error("Cancelled by user")
-        sys.exit()
+    except (SystemExit, KeyboardInterrupt):
+        raise
     except requests.exceptions.ConnectionError:
         # For requests error and exceptions, see
         # http://docs.python-requests.org/en/latest/user/quickstart/
         # errors-and-exceptions
-        logger.error("Network problem: ConnectionError")
-        if random.choice([True, False]):
-            if http_proxy is None or len(config.HTTP_PROXY_LIST) < 1:
-                # fill the proxy list again, and wait a long time, then restart
-                logger.error("No proxies left in the list. Re-initializing.")
-                time.sleep(config.RE_INIT_SLEEP_TIME)  # be nice
-
-            else:
-                # remove the proxy from the proxy list
-                logger.warning("Removing " + http_proxy + " from proxy list.")
-                config.HTTP_PROXY_LIST.remove(http_proxy)
+        logger.warning("Network request exception {a}: connectionError".format(a=attempt_id))
         return None
     except requests.exceptions.HTTPError:
-        logger.error("Invalid HTTP response: HTTPError")
+        logger.error("Network request exception {a}: invalid HTTP response".format(a=attempt_id))
         return None
     except requests.exceptions.Timeout:
-        logger.error("Request timed out: Timeout")
+        logger.warning("Network request exception {a}: timeout".format(a=attempt_id))
         return None
     except requests.exceptions.TooManyRedirects:
-        logger.error("Too many redirects: TooManyRedirects")
+        logger.error("Network request exception {a}: too many redirects".format(a=attempt_id))
         return None
     except requests.exceptions.RequestException:
-        logger.error("Unidentified Requests error: RequestException")
+        logger.error("Network request exception {a}: unidentified requests".format(a=attempt_id))
         return None
     except Exception as e:
-        logger.exception("Exception type: " + type(e).__name__)
+        logger.exception("Network request exception: type " + type(e).__name__)
         return None
