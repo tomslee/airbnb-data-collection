@@ -10,10 +10,16 @@
 *.bat
 *.json
 *.sh
+*.xlsx
 temp.*
 googlemaps.py
 !example.config
 .ropeproject/*
+/csv/*
+/maps/*
+/pack/*
+/s3_files/*
+/sql/*
 /img/*
 /reports/*
 /backup/*
