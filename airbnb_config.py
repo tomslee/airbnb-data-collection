@@ -19,6 +19,7 @@ class ABConfig():
         """ Read the configuration file <username>.config to set up the run
         """
         self.config_file = None
+        self.log_level = logging.INFO
         if args is not None:
             self.config_file=args.config_file
             try:
