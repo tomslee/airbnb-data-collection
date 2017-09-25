@@ -1,3 +1,56 @@
+--updated schema_current by moving sequences in front of tables and adding db-level settings from schema.sql
+
+CREATE EXTENSION postgis;
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+
+SET search_path = public, pg_catalog;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+CREATE SEQUENCE city_city_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+CREATE SEQUENCE neighborhood_neighborhood_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+CREATE SEQUENCE search_area_search_area_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+CREATE SEQUENCE survey_survey_id_seq
+            START WITH 1
+            INCREMENT BY 1
+            NO MINVALUE
+            NO MAXVALUE
+            CACHE 1;
+
+CREATE SEQUENCE survey_search_page_page_id_seq
+                START WITH 1
+                INCREMENT BY 1
+                NO MINVALUE
+                NO MAXVALUE
+                CACHE 1;
+
 CREATE TABLE public.city
 (
   city_id integer NOT NULL DEFAULT nextval('city_city_id_seq'::regclass),
@@ -168,7 +221,7 @@ CREATE OR REPLACE FUNCTION public.trg_location()
 $BODY$
 BEGIN
   NEW.location := st_setsrid(
-	st_makepoint(NEW.longitude, NEW.latitude), 
+	st_makepoint(NEW.longitude, NEW.latitude),
 	4326
 	);
 	RETURN NEW;
@@ -177,4 +230,8 @@ $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
 
-
+ALTER SEQUENCE neighborhood_neighborhood_id_seq OWNED BY neighborhood.neighborhood_id;
+ALTER SEQUENCE survey_search_page_page_id_seq OWNED BY survey_progress_log.page_id;
+ALTER SEQUENCE survey_survey_id_seq OWNED BY survey.survey_id;
+ALTER SEQUENCE search_area_search_area_id_seq OWNED BY search_area.search_area_id;
+ALTER SEQUENCE city_city_id_seq OWNED BY city.city_id;
