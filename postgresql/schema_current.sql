@@ -106,6 +106,7 @@ CREATE TABLE public.room
 WITH (
   OIDS=FALSE
 );
+
 CREATE TABLE public.schema_version
 (
   version numeric(5,2) NOT NULL,
@@ -229,6 +230,12 @@ BEGIN
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
+
+CREATE TRIGGER trg_location 
+BEFORE INSERT OR UPDATE 
+OF latitude, longitude ON room 
+FOR EACH ROW 
+    EXECUTE PROCEDURE trg_location();
 
 ALTER SEQUENCE neighborhood_neighborhood_id_seq OWNED BY neighborhood.neighborhood_id;
 ALTER SEQUENCE survey_search_page_page_id_seq OWNED BY survey_progress_log.page_id;
