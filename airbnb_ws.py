@@ -69,8 +69,10 @@ def ws_request(config, url, attempt_id, params=None):
             proxies = None
 
         # Now make the request
+        # cookie to avoid auto-redirect
+        cookies = dict(sticky_locale='en')
         response = requests.get(url, params, timeout=timeout,
-                                headers=headers, proxies=proxies)
+                headers=headers, cookies=cookies, proxies=proxies)
         if response.status_code == 503:
             if http_proxy:
                 logger.warning("HTTP 503 error from web site: IP address {a} blocked"
