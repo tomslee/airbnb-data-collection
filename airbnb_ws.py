@@ -13,7 +13,7 @@ import requests
 from airbnb_config import ABConfig
 
 # Set up logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 
 def ws_request_with_repeats(config, url, params=None):

@@ -32,20 +32,16 @@ class ABSurvey():
 
         # Set up logging
         logger.setLevel(config.log_level)
+        
         # create a file handler
-        logfile = "survey_{survey_id}.log".format(survey_id=self.survey_id)
+        logfile = "survey-{survey_id}.log".format(survey_id=self.survey_id)
         filelog_handler = logging.FileHandler(logfile, encoding="utf-8")
+        filelog_handler.setLevel(config.log_level)
         filelog_formatter = logging.Formatter('%(asctime)-15s %(levelname)-8s%(message)s')
         filelog_handler.setFormatter(filelog_formatter)
-        # create a console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(config.log_level)
-        ch_formatter = logging.Formatter('%(levelname)-8s%(message)s')
-        console_handler.setFormatter(ch_formatter)
 
         # logging: set log file name, format, and level
         logger.addHandler(filelog_handler)
-        logger.addHandler(console_handler)
 
         # Suppress informational logging from requests module
         logging.getLogger("requests").setLevel(logging.WARNING)

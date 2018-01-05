@@ -420,6 +420,7 @@ def parse_args():
 
 def main():
     (parser, args) = parse_args()
+    logging.basicConfig(format='%(levelname)-8s%(message)s')
     ab_config = ABConfig(args)
     try:
         if args.search:

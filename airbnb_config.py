@@ -11,7 +11,6 @@ import sys
 from datetime import datetime
 
 logger = logging.getLogger()
-logger.info("Logger got")
 
 class ABConfig():
 
