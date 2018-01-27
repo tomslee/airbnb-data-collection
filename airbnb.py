@@ -35,13 +35,14 @@ import airbnb_ws
 # ============================================================================
 
 # Script version
+# 3.0 modified -sb searches to reflect new Airbnb web site design (Jan 2018)
 # 2.9 adds resume for bounding box searches. Requires new schema
 # 2.8 makes different searches subclasses of ABSurvey
 # 2.7 factors the Survey and Listing objects into their own modules
 # 2.6 adds a bounding box search
 # 2.5 is a bit of a rewrite: classes for ABListing and ABSurvey, and requests lib
 # 2.3 released Jan 12, 2015, to handle a web site update
-SCRIPT_VERSION_NUMBER = 2.9
+SCRIPT_VERSION_NUMBER = 3.0
 logger = logging.getLogger()
 
 
