@@ -14,6 +14,8 @@ import sys
 import random
 import psycopg2
 from datetime import date
+from bs4 import BeautifulSoup
+import json
 from airbnb_listing import ABListing
 import airbnb_ws
 
@@ -87,26 +89,41 @@ class ABSurvey():
             conn.rollback()
             return False
 
-    def listing_from_search_page_json(self, result, room_id, room_type):
+    def listing_from_search_page_json(self, json, room_id, room_type):
         try:
             listing = ABListing(self.config, room_id, self.survey_id, room_type)
             # listing
-            json_listing = result["listing"]
-            listing.host_id = json_listing["primary_host"]["id"] if "primary_host" in json_listing else None
-            listing.address = json_listing["public_address"] if "public_address" in json_listing else None
-            listing.reviews = json_listing["reviews_count"] if "reviews_count" in json_listing else None
-            listing.overall_satisfaction = json_listing["star_rating"] if "star_rating" in json_listing else None
-            listing.accommodates = json_listing["person_capacity"] if "person_capacity" in json_listing else None
-            listing.bedrooms = json_listing["bedrooms"] if "bedrooms" in json_listing else None
-            listing.latitude = json_listing["lat"] if "lat" in json_listing else None
-            listing.longitude = json_listing["lng"] if "lng" in json_listing else None
-            listing.coworker_hosted = json_listing["coworker_hosted"] if "coworker_hosted" in json_listing else None
+            json_listing = json["listing"] if "listing" in json else None
+            listing.host_id = json_listing["user"]["id"] \
+                    if "user" in json_listing else None
+            listing.address = json_listing["public_address"] \
+                    if "public_address" in json_listing else None
+            listing.reviews = json_listing["reviews_count"] \
+                    if "reviews_count" in json_listing else None
+            listing.overall_satisfaction = json_listing["star_rating"] \
+                    if "star_rating" in json_listing else None
+            listing.accommodates = json_listing["person_capacity"] \
+                    if "person_capacity" in json_listing else None
+            listing.bedrooms = json_listing["bedrooms"] \
+                    if "bedrooms" in json_listing else None
+            listing.bathrooms = json_listing["bathrooms"] \
+                    if "bathrooms" in json_listing else None
+            listing.latitude = json_listing["lat"] \
+                    if "lat" in json_listing else None
+            listing.longitude = json_listing["lng"] \
+                    if "lng" in json_listing else None
+            # The coworker_hosted item is missing or elsewhere
+            listing.coworker_hosted = json_listing["coworker_hosted"] \
+                    if "coworker_hosted" in json_listing else None
+            # The extra_host_language item is missing or elsewhere
             listing.extra_host_languages = json_listing["extra_host_languages"] \
                 if "extra_host_languages" in json_listing else None
-            listing.name = json_listing["name"] if "name" in json_listing else None
-            listing.property_type = json_listing["property_type"] if "property_type" in json_listing else None
+            listing.name = json_listing["name"] \
+                    if "name" in json_listing else None
+            listing.property_type = json_listing["property_type"] \
+                    if "property_type" in json_listing else None
             # pricing
-            json_pricing = result["pricing_quote"]
+            json_pricing = json["pricing_quote"]
             listing.price = json_pricing["rate"]["amount"] if "rate" in json_pricing else None
             listing.currency = json_pricing["rate"]["currency"] if "rate" in json_pricing else None
             listing.rate_type = json_pricing["rate_type"] if "rate_type" in json_pricing else None
@@ -517,13 +534,34 @@ class ABSurveyByBoundingBox(ABSurvey):
                     logger.warning("No response received from request despite multiple attempts: {p}"
                             .format(p=params))
                     continue
-                json = response.json()
-                for result in json["results_json"]["search_results"]:
-                    room_id = int(result["listing"]["id"])
+                soup = BeautifulSoup(response.content.decode("utf-8", "ignore"), "lxml")
+                f = open("test.html", mode="w", encoding="utf-8")
+                f.write(soup.prettify())
+                f.close()
+                # The returned page includes a script tag that encloses a
+                # comment. The comment in turn includes a complex json
+                # structure as a string, which has the data we need
+                script = soup.find_all("script", {"type": "application/json", "data-hypernova-key": "spaspabundlejs" }) 
+                if len(script) > 0: 
+                    content = script[0].contents[0]
+                else:
+                    logger.info("No json script element found")
+                    return None
+                j = json.loads(content[content.find("{"):content.rfind("}")+1])
+
+                # Now we have the json. It includes a list of (18 or fewer)
+                # listings
+                try:
+                    json_listings = j["bootstrapData"]["reduxData"]["exploreTab"]["response"]["explore_tabs"][0]["sections"][0]["listings"]
+                except:
+                    logger.debug("No listings found: final page of listings for this search")
+                    break
+                for json_listing in json_listings:
+                    room_id = int(json_listing["listing"]["id"])
                     if room_id is not None:
                         room_count += 1
                         room_total += 1
-                        listing = self.listing_from_search_page_json(result, room_id, room_type)
+                        listing = self.listing_from_search_page_json(json_listing, room_id, room_type)
                         median_lists["latitude"].append(listing.latitude)
                         median_lists["longitude"].append(listing.longitude)
                         if listing is None:
@@ -562,8 +600,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                     .format(quadtree_node=str(quadtree_node), median_leaf=str(median_leaf)))
             # calculate medians
             if room_count > 0:
-                median_lat = sorted(median_lists["latitude"])[int(len(median_lists["latitude"])/2)]
-                median_lng = sorted(median_lists["longitude"])[int(len(median_lists["longitude"])/2)]
+                median_lat = round(sorted(median_lists["latitude"])[int(len(median_lists["latitude"])/2)], 5)
+                median_lng = round(sorted(median_lists["longitude"])[int(len(median_lists["longitude"])/2)], 5)
                 median_leaf = [median_lat, median_lng]
             else:
                 # values not needed, but we need to fill in an item anyway
@@ -600,14 +638,26 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # Airbnb max zoom (18) is about 0.004 on a side.
                 rectangle = []
                 if node==[0,0]: # NE
-                    rectangle = [n_lat + blur, e_lng + blur, mid_lat - blur, mid_lng - blur]
+                    rectangle = [round(n_lat + blur, 5),
+                            round(e_lng + blur, 5),
+                            round(mid_lat - blur, 5),
+                            round(mid_lng - blur, 5),]
                 elif node==[0,1]: # NW
-                    rectangle = [n_lat + blur, mid_lng + blur, mid_lat - blur, w_lng - blur]
+                    rectangle = [round(n_lat + blur, 5),
+                            round(mid_lng + blur, 5),
+                            round(mid_lat - blur, 5),
+                            round(w_lng - blur, 5),]
                 elif node==[1,0]: # SE
-                    rectangle = [mid_lat + blur, e_lng + blur, s_lat - blur, mid_lng - blur]
+                    rectangle = [round(mid_lat + blur, 5),
+                            round(e_lng + blur, 5),
+                            round(s_lat - blur, 5),
+                            round(mid_lng - blur, 5),]
                 elif node==[1,1]: # SW
-                    rectangle = [mid_lat + blur, mid_lng + blur, s_lat - blur, w_lng - blur]
-            logger.debug("Rectangle calculated: {rect}".format(rect=rectangle))
+                    rectangle = [round(mid_lat + blur, 5),
+                            round(mid_lng + blur, 5),
+                            round(s_lat - blur, 5),
+                            round(w_lng - blur, 5),]
+            logger.info("Rectangle calculated: {rect}".format(rect=rectangle))
             return rectangle
         except:
             logger.exception("Exception in get_rectangle_from_quadtree_node")

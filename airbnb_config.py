@@ -37,9 +37,11 @@ class ABConfig():
         self.URL_ROOM_ROOT = self.URL_ROOT + "rooms/"
         self.URL_HOST_ROOT = self.URL_ROOT + "users/show/"
         self.URL_SEARCH_ROOT = self.URL_ROOT + "s/"
-        self.URL_API_SEARCH_ROOT = self.URL_ROOT + "search/search_results"
+        # self.URL_API_SEARCH_ROOT = self.URL_ROOT + "search/search_results"
+        self.URL_API_SEARCH_ROOT = self.URL_ROOT + "s/homes"
         self.SEARCH_AREA_GLOBAL = "UNKNOWN"  # special case: sample listings globally
-        self.SEARCH_RECTANGLE_EDGE_BLUR = 0.1
+        # self.SEARCH_RECTANGLE_EDGE_BLUR = 0.1
+        self.SEARCH_RECTANGLE_EDGE_BLUR = 0.0
         self.SEARCH_BY_NEIGHBORHOOD = 'neighborhood'  # default
         self.SEARCH_BY_ZIPCODE = 'zipcode'
         self.SEARCH_BY_BOUNDING_BOX = 'bounding box'

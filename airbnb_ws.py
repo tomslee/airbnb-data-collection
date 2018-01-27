@@ -18,6 +18,7 @@ logger = logging.getLogger()
 
 def ws_request_with_repeats(config, url, params=None):
     # Return None on failure
+    logger.debug(url)
     for attempt_id in range(config.MAX_CONNECTION_ATTEMPTS):
         try:
             response = ws_request(config, url, attempt_id, params)
