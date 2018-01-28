@@ -562,8 +562,10 @@ class ABSurveyByBoundingBox(ABSurvey):
                         room_count += 1
                         room_total += 1
                         listing = self.listing_from_search_page_json(json_listing, room_id, room_type)
-                        median_lists["latitude"].append(listing.latitude)
-                        median_lists["longitude"].append(listing.longitude)
+                        if listing.latitude is not None:
+                            median_lists["latitude"].append(listing.latitude)
+                        if listing.longitude is not None:
+                            median_lists["longitude"].append(listing.longitude)
                         if listing is None:
                             continue
                         if listing.host_id is not None:
