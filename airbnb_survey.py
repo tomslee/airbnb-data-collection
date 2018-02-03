@@ -543,18 +543,21 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # structure as a string, which has the data we need
                 script = soup.find_all("script", {"type": "application/json", "data-hypernova-key": "spaspabundlejs" }) 
                 if len(script) > 0: 
+                    logger.debug("Found spaspabundlejs")
                     content = script[0].contents[0]
+                    j = json.loads(content[content.find("{"):content.rfind("}")+1])
+                    logger.debug("json script element found")
                 else:
-                    logger.info("No json script element found")
+                    logger.debug("json script element not found")
                     return None
-                j = json.loads(content[content.find("{"):content.rfind("}")+1])
 
-                # Now we have the json. It includes a list of (18 or fewer)
-                # listings
+                # Now we have the json. It includes a list of 18 or 
+                # fewer listings
                 try:
                     json_listings = j["bootstrapData"]["reduxData"]["exploreTab"]["response"]["explore_tabs"][0]["sections"][0]["listings"]
+                    logger.debug("json listings found: {} items".format(len(json_listings)))
                 except:
-                    logger.debug("No listings found: final page of listings for this search")
+                    logger.info("json listings not found: go to next page")
                     break
                 for json_listing in json_listings:
                     room_id = int(json_listing["listing"]["id"])

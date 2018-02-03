@@ -35,13 +35,14 @@ def runit(f, x, details):
     if details:
         print("Request time buckets")
         for ix, val in enumerate(dt_buckets):
-            print(ix, val)
+            if val > 0:
+                print(ix, val)
         print("Connection error buckets")
         for ix, val in enumerate(connection_error_buckets):
             if val > 0:
                 print(ix, val)
 
-    print("Average response time for survey_{} = {} seconds".format(x, total_response_time/len(dt_diffs)))
+    print("Average response time for survey-{} = {} seconds".format(x, total_response_time/len(dt_diffs)))
 
 try:
     survey_id = sys.argv[1]
@@ -49,7 +50,7 @@ except:
     survey_id = None
 
 if survey_id is not None:
-    filename = "survey_{}.log".format(survey_id)
+    filename = "survey-{}.log".format(survey_id)
     f=open(filename)
     runit(f, filename, True)
 else:
