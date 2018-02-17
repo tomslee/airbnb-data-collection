@@ -22,7 +22,7 @@ import airbnb_ws
 
 logger = logging.getLogger()
 
-class Timer:    
+class Timer:
     def __enter__(self):
         self.start = time.clock()
         return self
@@ -43,7 +43,7 @@ class ABSurvey():
 
         # Set up logging
         logger.setLevel(config.log_level)
-        
+
         # create a file handler
         logfile = "survey-{survey_id}.log".format(survey_id=self.survey_id)
         filelog_handler = logging.FileHandler(logfile, encoding="utf-8")
@@ -300,8 +300,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                 logged_progress["median"] = eval(row[5])
                 logger.info( """Retrieved logged progress: {rt}, {g} guests, price {pmin}-{pmax}""".
                 format(rt = logged_progress["room_type"],
-                    g=logged_progress["guests"], 
-                    pmin=logged_progress["price_range"][0], 
+                    g=logged_progress["guests"],
+                    pmin=logged_progress["price_range"][0],
                     pmax=logged_progress["price_range"][1]))
                 logger.info("\tquadtree node {quadtree}"
                         .format(quadtree=repr(logged_progress["quadtree"])))
@@ -429,7 +429,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                      [0,1] (NW)   |   [0,0] (NE)
                      ---------------------------
                      [1,1] (SW)   |   [1,0] (SE)
-        
+
         The quadrants are searched in the order [0,0], [0,1], [1,0], [1,1]
         """
         try:
@@ -466,6 +466,8 @@ class ABSurveyByBoundingBox(ABSurvey):
             # very few new rooms but take a lot of time)
             if guests > 0:
                 zoomable = len(quadtree_node) < max(1, (self.config.SEARCH_MAX_RECTANGLE_ZOOM - 2 * (guests - 1)))
+            else:
+                zoomable = len(quadtree_node) < self.config.SEARCH_MAX_RECTANGLE_ZOOM
             # zoomable = len(quadtree_node) < self.config.SEARCH_MAX_RECTANGLE_ZOOM
             # If (new_rooms > 0 or page_count == self.config.SEARCH_MAX_PAGES) and zoomable:
             # zoom in if the search returned a full set of SEARCH_MAX_PAGES pages even 
@@ -477,7 +479,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 median_node.append(median_leaf)
                 for int_leaf in range(4):
                     # append a node to the quadtree for a new level
-                    quadtree_leaf = [int(i) 
+                    quadtree_leaf = [int(i)
                             for i in str(bin(int_leaf))[2:].zfill(2)]
                     quadtree_node[-1] = quadtree_leaf
                     new_rooms = self.recurse_quadtree(room_type, guests, price_range,
@@ -558,8 +560,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # The returned page includes a script tag that encloses a
                 # comment. The comment in turn includes a complex json
                 # structure as a string, which has the data we need
-                script = soup.find_all("script", {"type": "application/json", "data-hypernova-key": "spaspabundlejs" }) 
-                if len(script) > 0: 
+                script = soup.find_all("script", {"type": "application/json", "data-hypernova-key": "spaspabundlejs" })
+                if len(script) > 0:
                     logger.debug("Found spaspabundlejs")
                     content = script[0].contents[0]
                     j = json.loads(content[content.find("{"):content.rfind("}")+1])
@@ -690,10 +692,10 @@ class ABSurveyByBoundingBox(ABSurvey):
         # in a previous survey
         subtree_previously_completed = False
         if len(quadtree_node) > 0 and self.logged_progress is not None:
-            s_this_quadrant = ''.join(str(quadtree_node[i][j]) 
+            s_this_quadrant = ''.join(str(quadtree_node[i][j])
                     for j in range(0,2)
                     for i in range(0,len(quadtree_node)))
-            s_logged_progress = ''.join(str(self.logged_progress["quadtree"][i][j]) 
+            s_logged_progress = ''.join(str(self.logged_progress["quadtree"][i][j])
                     for j in range(0,2)
                     for i in range(0,len(quadtree_node)))
             if int(s_this_quadrant) < int(s_logged_progress):
@@ -708,10 +710,10 @@ class ABSurveyByBoundingBox(ABSurvey):
             # This upsert statement requires PostgreSQL 9.5
             # Convert the quadrant to a string with repr() before storing it
             sql = """
-            insert into survey_progress_log_bb 
+            insert into survey_progress_log_bb
             (survey_id, room_type, guests, price_min, price_max, quadtree_node,
             median_node)
-            values 
+            values
             (%s, %s, %s, %s, %s, %s, %s)
             on conflict ON CONSTRAINT survey_progress_log_bb_pkey
             do update
@@ -726,7 +728,7 @@ class ABSurveyByBoundingBox(ABSurvey):
             """
             conn = self.config.connect()
             cur = conn.cursor()
-            cur.execute(sql, (self.survey_id, room_type, 
+            cur.execute(sql, (self.survey_id, room_type,
                 guests, price_min, price_max, repr(quadtree_node),
                 repr(median_node),
                 room_type, guests, price_min, price_max,
@@ -1013,7 +1015,7 @@ class ABSurveyByZipcode(ABSurvey):
             logger.error("Failed to retrieve zipcodes for search_area" +
                         str(self.search_area_id))
             raise
-    
+
     def get_search_page_info_zipcode(self, room_type,
                                         zipcode, guests, page_number, flag):
         try:
@@ -1066,7 +1068,7 @@ class ABSurveyByZipcode(ABSurvey):
             logger.error("Exception type: " + type(e).__name__)
             raise
 
-    
+
 def ABSurveyGlobal(ABSurvey):
     """
     Special search to randomly choose rooms from a range rather than to
