@@ -74,10 +74,12 @@ def ws_request(config, url, attempt_id, params=None):
         cookies = dict(sticky_locale='en')
         response = requests.get(url, params, timeout=timeout,
                 headers=headers, cookies=cookies, proxies=proxies)
-        if response.status_code == 503:
+        if response.status_code < 300:
+            return response
+        else:
             if http_proxy:
-                logger.warning("HTTP 503 error from web site: IP address {a} blocked"
-                    .format(a=http_proxy))
+                logger.warning("HTTP status {s} from web site: IP address {a} may be blocked"
+                    .format(s=response.status_code, a=http_proxy))
                 if len(config.HTTP_PROXY_LIST) > 0:
                     # randomly remove the proxy from the list, with probability 50%
                     if random.choice([True, False]):
@@ -103,11 +105,11 @@ def ws_request(config, url, attempt_id, params=None):
                     logger.warning("Adding one second to request sleep time. Now {s}"
                         .format(s=config.REQUEST_SLEEP))
             else:
-                logger.warning("HTTP 503 error from web site: IP address blocked. Waiting {m} minutes."
-                        .format(m=(config.RE_INIT_SLEEP_TIME / 60.0)))
+                logger.warning("HTTP status {s} from web site: IP address blocked. Waiting {m} minutes."
+                        .format(s=response.status_code, m=(config.RE_INIT_SLEEP_TIME / 60.0)))
                 time.sleep(config.RE_INIT_SLEEP_TIME)
                 config.REQUEST_SLEEP += 1.0
-        return response
+            return response
     except (SystemExit, KeyboardInterrupt):
         raise
     except requests.exceptions.ConnectionError:
