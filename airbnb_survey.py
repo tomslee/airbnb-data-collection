@@ -13,6 +13,7 @@ import logging
 import sys
 import random
 import psycopg2
+import time
 from datetime import date
 from bs4 import BeautifulSoup
 import json
@@ -21,6 +22,14 @@ import airbnb_ws
 
 logger = logging.getLogger()
 
+class Timer:    
+    def __enter__(self):
+        self.start = time.clock()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.clock()
+        self.interval = self.end - self.start
 
 class ABSurvey():
 
@@ -94,6 +103,7 @@ class ABSurvey():
             listing = ABListing(self.config, room_id, self.survey_id, room_type)
             # listing
             json_listing = json["listing"] if "listing" in json else None
+            if json_listing is None: return None
             listing.host_id = json_listing["user"]["id"] \
                     if "user" in json_listing else None
             listing.address = json_listing["public_address"] \
@@ -377,11 +387,15 @@ class ABSurveyByBoundingBox(ABSurvey):
             # Starting point set: loop over room types
             for room_type in self.room_types[room_types_start_index:]:
                 if room_type in ("Private room", "Shared room"):
-                    max_guests = 4
+                    max_guests = min(4, self.config.SEARCH_MAX_GUESTS)
                 else:
                     max_guests = self.config.SEARCH_MAX_GUESTS
                 # loop over guests
-                for guests in range(guests_start, max_guests):
+                for guests in range(guests_start, max_guests + 1):
+                    if max_guests == 1:
+                        # don't specify the guests in the search
+                        # Set guests to 0 to indicate that guests should not be specified 
+                        guests = 0
                     # loop over price ranges
                     for i in range(price_start_index, len(price_increments) - 1):
                         price_range = [price_increments[i], price_increments[i+1]]
@@ -392,9 +406,9 @@ class ABSurveyByBoundingBox(ABSurvey):
                             median_node, flag)
                         # reset starting price
                         price_start_index = 0
-                # reset the starting point so that (in the event of a resumed
-                # survey) the next room type gets all guest counts.
-                guests_start = 1
+                    # reset the starting point so that (in the event of a resumed
+                    # survey) the next room type gets all guest counts.
+                    guests_start = 1
             self.fini()
         except (SystemExit, KeyboardInterrupt):
             raise
@@ -450,7 +464,8 @@ class ABSurveyByBoundingBox(ABSurvey):
             # The max zoom is set in config, but decrease it by one for each guest
             # so that high guest counts don't zoom in (which turns out to generate
             # very few new rooms but take a lot of time)
-            zoomable = len(quadtree_node) < max(1, (self.config.SEARCH_MAX_RECTANGLE_ZOOM - 2 * (guests - 1)))
+            if guests > 0:
+                zoomable = len(quadtree_node) < max(1, (self.config.SEARCH_MAX_RECTANGLE_ZOOM - 2 * (guests - 1)))
             # zoomable = len(quadtree_node) < self.config.SEARCH_MAX_RECTANGLE_ZOOM
             # If (new_rooms > 0 or page_count == self.config.SEARCH_MAX_PAGES) and zoomable:
             # zoom in if the search returned a full set of SEARCH_MAX_PAGES pages even 
@@ -516,7 +531,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 room_count = 0
                 # set up the parameters for the request
                 params = {}
-                params["guests"] = str(guests)
+                if guests > 0: params["guests"] = str(guests)
                 params["page"] = str(page_number)
                 params["source"] = "filter"
                 params["room_types[]"] = room_type
@@ -530,14 +545,16 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # make the http request
                 response = airbnb_ws.ws_request_with_repeats(self.config, self.config.URL_API_SEARCH_ROOT, params)
                 # process the response
+                # If no response, maybe it's a network problem rather than a lack of data, so
+                # to be conservative go to the next page rather than the next rectangle
                 if response is None:
                     logger.warning("No response received from request despite multiple attempts: {p}"
                             .format(p=params))
                     continue
                 soup = BeautifulSoup(response.content.decode("utf-8", "ignore"), "lxml")
-                f = open("test.html", mode="w", encoding="utf-8")
-                f.write(soup.prettify())
-                f.close()
+                # f = open("test.html", mode="w", encoding="utf-8")
+                # f.write(soup.prettify())
+                # f.close()
                 # The returned page includes a script tag that encloses a
                 # comment. The comment in turn includes a complex json
                 # structure as a string, which has the data we need
@@ -548,29 +565,29 @@ class ABSurveyByBoundingBox(ABSurvey):
                     j = json.loads(content[content.find("{"):content.rfind("}")+1])
                     logger.debug("json script element found")
                 else:
-                    logger.debug("json script element not found")
+                    logger.warning("json results-containing script node (spaspabundlejs) not found in the web page: go to next page")
                     return None
 
-                # Now we have the json. It includes a list of 18 or 
-                # fewer listings
+                # Now we have the json. It includes a list of 18 or fewer listings
                 try:
                     json_listings = j["bootstrapData"]["reduxData"]["exploreTab"]["response"]["explore_tabs"][0]["sections"][0]["listings"]
                     logger.debug("json listings found: {} items".format(len(json_listings)))
                 except:
-                    logger.info("json listings not found: go to next page")
+                    logger.warning("json listings not found in script node: go to next rectangle")
                     break
+                # We have a list of listings: extract the data from it
                 for json_listing in json_listings:
                     room_id = int(json_listing["listing"]["id"])
                     if room_id is not None:
                         room_count += 1
                         room_total += 1
                         listing = self.listing_from_search_page_json(json_listing, room_id, room_type)
+                        if listing is None:
+                            continue
                         if listing.latitude is not None:
                             median_lists["latitude"].append(listing.latitude)
                         if listing.longitude is not None:
                             median_lists["longitude"].append(listing.longitude)
-                        if listing is None:
-                            continue
                         if listing.host_id is not None:
                             listing.deleted = 0
                             if flag == self.config.FLAGS_ADD:
@@ -772,7 +789,7 @@ class ABSurveyByNeighborhood(ABSurvey):
     def __search_neighborhood(self, neighborhood, room_type, flag):
         try:
             if room_type in ("Private room", "Shared room"):
-                max_guests = 4
+                max_guests = min(4, self.config.SEARCH_MAX_GUESTS)
             else:
                 max_guests = self.config.SEARCH_MAX_GUESTS
             for guests in range(1, max_guests):
@@ -941,7 +958,7 @@ class ABSurveyByZipcode(ABSurvey):
                          flag, search_area_name):
         try:
             if room_type in ("Private room", "Shared room"):
-                max_guests = 4
+                max_guests = min(4, self.config.SEARCH_MAX_GUESTS)
             else:
                 max_guests = self.config.SEARCH_MAX_GUESTS
             for guests in range(1, max_guests):
