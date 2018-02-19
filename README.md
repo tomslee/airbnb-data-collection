@@ -6,9 +6,13 @@ The script scrapes the Airbnb web site to collect data about the shape of the co
 
 Sometimes the Airbnb site refuses repeated requests. I run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services. If you would rather not make the attempt yourself, I will be happy to run collections for you when time allows.
 
-## Status
+## Status and recent changes
 
 For some time in January 2018 this script was not working at all, as Airbnb had changed the site layout. As of February 1 2018, tests on four cities are consistent with results from throughout 2017 for the "-sb" bounding-box survey, and I believe it can be used reliably in that way.
+
+### February 2018
+
+The "-sb" search that is all I do now is more efficient now. Set search_max_guests to 1 and search_do_loop_over_prices to 1, and the search does not doo separate loops over guests and price ranges. Instead, set a larger search_max_zoom (eg 12) as by covering all guests and price ranges at once, the search may need to zoom down to smaller rectangles.
 
 ## Prerequisites
 
