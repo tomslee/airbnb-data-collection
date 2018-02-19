@@ -25,12 +25,15 @@ def runit(survey_id, details):
     total_connection_error_count = 0
     new_rooms_list = []
     page_and_zoom_complete = 0
+    price_min = 0
+    price_max = 0
     # Collect data from lines in the log
     # 2018-02-07 05:17:02,836 INFO    Searching rectangle: Shared room, guests = 2, prices in [60, 80], zoom factor = 1
     # 2018-02-07 05:17:04,114 INFO    Page 01 returned 01 listings
     # 2018-02-07 05:17:04,114 INFO    Results:  1 pages, 0 new rooms, Shared room, 2 guests, prices in [60, 80]
     p_page = re.compile("([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}),([0-9]{3}) INFO    Page ([0-9]{2}) returned ([0-9]+) listings")
-    p_rectangle = re.compile("Searching rectangle: ([^,]+), guests = ([0-9]+), prices in \[([0-9]+), ([0-9]+)\], zoom factor = ([0-9]+)")
+    p_rectangle_price = re.compile("Searching rectangle: ([^,]+), guests = ([0-9]+), prices in \[([0-9]+), ([0-9]+)\], zoom factor = ([0-9]+)")
+    p_rectangle_no_price = re.compile("Searching rectangle: ([^,]+), guests = ([0-9]+), zoom factor = ([0-9]+)")
     p_result = re.compile("Results:\s+([0-9]+) pages, ([0-9]+) new rooms, .+")
     p_survey = re.compile("Survey\s+([0-9]+), for (.*)")
     p_max_zoom = re.compile("Searching by bounding box, max_zoom=([0-9]+)")
@@ -51,13 +54,19 @@ def runit(survey_id, details):
                 page_and_zoom_complete += 1
         # Rectangle details
         elif "Searching rectangle:" in line:
-            match = p_rectangle.search(line)
-            if match is not None:
+            match = p_rectangle_price.search(line)
+            if match:
                 room_type = match.group(1)
                 guests = int(match.group(2))
                 price_min = int(match.group(3))
                 price_max = int(match.group(4))
                 zoom = int(match.group(5))
+            else:
+                match = p_rectangle_no_price.search(line)
+                if match:
+                    room_type = match.group(1)
+                    guests = int(match.group(2))
+                    zoom = int(match.group(3))
         # Results of a rectangle
         elif "Results:  " in line:
             match = p_result.search(line)
@@ -156,7 +165,7 @@ def runit(survey_id, details):
     arr_pr = [[0] * (max_zoom + 1) for i in range(max_guests)]
     arr_sr = [[0] * (max_zoom + 1) for i in range(max_guests)]
     results = {"Entire home/apt": arr_eh,
-        "Private room": arr_pr, 
+        "Private room": arr_pr,
         "Shared room":  arr_sr}
     for rectangle in new_rooms_list:
         # print("Rect: " + str(rectangle))

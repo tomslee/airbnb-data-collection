@@ -46,6 +46,7 @@ class ABConfig():
         self.SEARCH_BY_ZIPCODE = 'zipcode'
         self.SEARCH_BY_BOUNDING_BOX = 'bounding box'
         self.SEARCH_LISTINGS_ON_FULL_PAGE = 18
+        self.SEARCH_DO_LOOP_OVER_PRICES = True
         self.HTTP_PROXY_LIST = []
         self.HTTP_PROXY_LIST_COMPLETE = []
 
@@ -104,6 +105,8 @@ class ABConfig():
             self.SEARCH_MAX_GUESTS = int(config["SURVEY"]["search_max_guests"])
             self.SEARCH_MAX_RECTANGLE_ZOOM = int(
                 config["SURVEY"]["search_max_rectangle_zoom"])
+            if int(config["SURVEY"]["search_do_loop_over_prices"])==0:
+                self.SEARCH_DO_LOOP_OVER_PRICES = False
             self.RE_INIT_SLEEP_TIME = float(config["SURVEY"]["re_init_sleep_time"])
 
         except Exception:
