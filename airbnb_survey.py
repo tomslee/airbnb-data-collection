@@ -104,24 +104,42 @@ class ABSurvey():
             # listing
             json_listing = json["listing"] if "listing" in json else None
             if json_listing is None: return None
-            listing.host_id = json_listing["user"]["id"] \
-                    if "user" in json_listing else None
-            listing.address = json_listing["public_address"] \
-                    if "public_address" in json_listing else None
-            listing.reviews = json_listing["reviews_count"] \
-                    if "reviews_count" in json_listing else None
-            listing.overall_satisfaction = json_listing["star_rating"] \
-                    if "star_rating" in json_listing else None
-            listing.accommodates = json_listing["person_capacity"] \
-                    if "person_capacity" in json_listing else None
-            listing.bedrooms = json_listing["bedrooms"] \
-                    if "bedrooms" in json_listing else None
-            listing.bathrooms = json_listing["bathrooms"] \
-                    if "bathrooms" in json_listing else None
-            listing.latitude = json_listing["lat"] \
-                    if "lat" in json_listing else None
-            listing.longitude = json_listing["lng"] \
-                    if "lng" in json_listing else None
+            if "user" in json_listing:
+                listing.host_id = json_listing["user"]["id"]
+            else:
+                listing.host_id = None
+            if "public_address" in json_listing:
+                listing.address = json_listing["public_address"]
+            else:
+                listing.address = None
+            if "reviews_count" in json_listing:
+                listing.reviews = json_listing["reviews_count"]
+            else:
+                listing.reviews = None
+            if "star_rating" in json_listing:
+                listing.overall_satisfaction = json_listing["star_rating"]
+            else:
+                listing.overall_satisfaction = None
+            if "person_capacity" in json_listing:
+                listing.accommodates = json_listing["person_capacity"]
+            else:
+                listing.accommodates = None
+            if "bedrooms" in json_listing:
+                listing.bedrooms = json_listing["bedrooms"]
+            else:
+                listing.bedrooms = None
+            if "bathrooms" in json_listing:
+                listing.bathrooms = json_listing["bathrooms"]
+            else:
+                listing.bathrooms = None
+            if "lat" in json_listing:
+                listing.latitude = json_listing["lat"]
+            else:
+                listing.latitude = None
+            if "lng" in json_listing:
+                listing.longitude = json_listing["lng"]
+            else:
+                listing.longitude = None
             # The coworker_hosted item is missing or elsewhere
             listing.coworker_hosted = json_listing["coworker_hosted"] \
                     if "coworker_hosted" in json_listing else None
