@@ -8,9 +8,17 @@ Sometimes the Airbnb site refuses repeated requests. I run the script using a nu
 
 ## Status and recent changes
 
-For some time in January 2018 this script was not working at all, as Airbnb had changed the site layout. As of February 1 2018, tests on four cities are consistent with results from throughout 2017 for the "-sb" bounding-box survey, and I believe it can be used reliably in that way.
+### April 2018
+
+A second change to the Airbnb web site in February 2018 broke the script again. After several weeks, I have uploaded a fixed version on April 8, 2018. The specific change has been addressed (listings on a search site were broken into two distinct sets, and I had been picking up only one), and running on several cities suggests that the script is working again, although there is an open question whether it is missing about 10% of listings.
+
+I have also made a change to loop only over rectangles of increasingly small size, removing separate loops over number of guests, room_type, and price. This seems to increase efficiency considerably, with no loss of accuracy (if listings are missing -- see the previous paragraph -- I believe it is a separate issue).
+
+It continues to be the case that only "python airbnb.py -sb <survey-number>" works as a search method. See below for instructions on how to set up such a survey.
 
 ### February 2018
+
+For some time in January 2018 this script was not working at all, as Airbnb had changed the site layout. As of February 1 2018, tests on four cities are consistent with results from throughout 2017 for the "-sb" bounding-box survey, and I believe it can be used reliably in that way.
 
 The "-sb" search that is all I do now is more efficient now. Set search_max_guests to 1 and search_do_loop_over_prices to 1, and the search does not doo separate loops over guests and price ranges. Instead, set a larger search_max_zoom (eg 12) as by covering all guests and price ranges at once, the search may need to zoom down to smaller rectangles.
 

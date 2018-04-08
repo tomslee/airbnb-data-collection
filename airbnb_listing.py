@@ -21,11 +21,11 @@ class ABListing():
     # Occasionally, a survey_id = None will happen, but for retrieving data
     # straight from the web site, and not stored in the database.
     """
-    def __init__(self, config, room_id, survey_id, room_type=None):
+    def __init__(self, config, room_id, survey_id):
         self.config = config
         self.room_id = room_id
         self.host_id = None
-        self.room_type = room_type
+        self.room_type = None
         self.country = None
         self.city = None
         self.neighborhood = None

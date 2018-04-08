@@ -21,7 +21,7 @@ def ws_request_with_repeats(config, url, params=None):
     logger.debug(url)
     for attempt_id in range(config.MAX_CONNECTION_ATTEMPTS):
         try:
-            response = ws_request(config, url, attempt_id, params)
+            response = ws_individual_request(config, url, attempt_id, params)
             if response is None:
                 continue
             elif response.status_code == requests.codes.ok:
@@ -37,7 +37,7 @@ def ws_request_with_repeats(config, url, params=None):
     return None
 
 
-def ws_request(config, url, attempt_id, params=None):
+def ws_individual_request(config, url, attempt_id, params=None):
     """
     Individual web request: returns a response object or None on failure
     """
@@ -58,7 +58,7 @@ def ws_request(config, url, attempt_id, params=None):
 
         # If there is a list of proxies supplied, use it
         http_proxy = None
-        logger.debug("Using " + str(len(config.HTTP_PROXY_LIST)) + " proxies.")
+        logger.debug("Using " + str(len(config.HTTP_PROXY_LIST)) + " proxies")
         if len(config.HTTP_PROXY_LIST) > 0:
             http_proxy = random.choice(config.HTTP_PROXY_LIST)
             proxies = {
