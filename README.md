@@ -62,7 +62,9 @@ Add a search area (city) to the database:
 
     python airbnb.py -asa "City Name"
 
-This adds a city to the `search_area` table, and a set of neighborhoods to the `neighborhoods` table.
+This adds a city to the `search_area` table. It used to add a set of
+neighbourhoods to the neighborhoods table, but as only "-sb" searches
+are now supported that no longer happens.
 
 Add a survey description for that city:
 

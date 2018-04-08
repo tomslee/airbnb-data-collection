@@ -35,6 +35,8 @@ import airbnb_ws
 # ============================================================================
 
 # Script version
+# 3.2 April 2018: fix for modified Airbnb site. Avoided loops over room types 
+#                 in -sb
 # 3.1 provides more efficient "-sb" searches, avoiding loops over guests and
 # prices. See example.config for details, and set a large max_zoom (eg 12).
 # 3.0 modified -sb searches to reflect new Airbnb web site design (Jan 2018)
@@ -44,9 +46,8 @@ import airbnb_ws
 # 2.6 adds a bounding box search
 # 2.5 is a bit of a rewrite: classes for ABListing and ABSurvey, and requests lib
 # 2.3 released Jan 12, 2015, to handle a web site update
-SCRIPT_VERSION_NUMBER = 3.1
-logger = logging.getLogger()
-
+SCRIPT_VERSION_NUMBER = 3.2
+# logging = logging.getLogger()
 
 def list_search_area_info(config, search_area):
     try:
@@ -89,14 +90,14 @@ def list_search_area_info(config, search_area):
             cur.close()
             print("\t" + str(count) + " Airbnb cities.")
     except psycopg2.Error as pge:
-        logger.error(pge.pgerror)
-        logger.error("Error code " + pge.pgcode)
-        logger.error("Diagnostics " + pge.diag.message_primary)
+        logging.error(pge.pgerror)
+        logging.error("Error code " + pge.pgcode)
+        logging.error("Diagnostics " + pge.diag.message_primary)
         cur.close()
         conn.rollback()
         raise
     except Exception:
-        logger.error("Failed to list search area info")
+        logging.error("Failed to list search area info")
         raise
 
 
@@ -120,7 +121,7 @@ def list_surveys(config):
                 (survey_id, survey_date, desc, sa_id, status) = survey
                 print(template.format(survey_id, survey_date, desc, sa_id, status))
     except Exception:
-        logger.error("Cannot list surveys.")
+        logging.error("Cannot list surveys.")
         raise
 
 
@@ -132,7 +133,7 @@ def db_ping(config):
         else:
             print("Connection test failed")
     except Exception:
-        logger.exception("Connection test failed")
+        logging.exception("Connection test failed")
 
 
 def db_add_survey(config, search_area):
@@ -166,7 +167,7 @@ def db_add_survey(config, search_area):
               "\n\tsurvey_description=" + survey_description +
               "\n\tsearch_area_id=" + str(search_area_id))
     except Exception:
-        logger.error("Failed to add survey for " + search_area)
+        logging.error("Failed to add survey for " + search_area)
         raise
 
 
@@ -200,12 +201,12 @@ def db_get_room_to_fill(config, survey_id):
             conn.commit()
             return listing
         except TypeError:
-            logger.info("Finishing: no unfilled rooms in database --")
+            logging.info("Finishing: no unfilled rooms in database --")
             conn.rollback()
             del (config.connection)
             return None
         except Exception:
-            logger.exception("Error retrieving room to fill from db")
+            logging.exception("Error retrieving room to fill from db")
             conn.rollback()
             del (config.connection)
     return None
@@ -213,7 +214,34 @@ def db_get_room_to_fill(config, survey_id):
 
 def ws_get_city_info(config, city, flag):
     try:
+        logging.info("Adding city to database as new search area")
+        # Add the city to the database anyway
+        conn = config.connect()
+        cur = conn.cursor()
+        # check if it exists
+        sql_check = """
+        select name
+        from search_area
+        where name = %s"""
+        cur.execute(sql_check, (city,))
+        if cur.fetchone() is not None:
+            logging.info("City already exists: " + city)
+            return
+        # Insert the city into the table
+        sql_search_area = """insert
+        into search_area (name)
+        values (%s)"""
+        cur.execute(sql_search_area, (city,))
+        sql_identity = """select
+        currval('search_area_search_area_id_seq')
+        """
+        cur.execute(sql_identity, ())
+        search_area_id = cur.fetchone()[0]
+        # city_id = cur.lastrowid
+        logging.info("City %s added: search_area_id = %d", city, search_area_id)
+
         url = config.URL_SEARCH_ROOT + city
+        logging.debug(url)
         response = airbnb_ws.ws_request_with_repeats(config, url)
         if response is None:
             return False
@@ -230,33 +258,11 @@ def ws_get_city_info(config, city, flag):
                     print("\t", neighborhood)
             elif flag == config.FLAGS_ADD:
                 if len(citylist) > 0:
-                    conn = config.connect()
-                    cur = conn.cursor()
-                    # check if it exists
-                    sql_check = """
-                        select name
-                        from search_area
-                        where name = %s"""
-                    cur.execute(sql_check, (citylist[0],))
-                    if cur.fetchone() is not None:
-                        logger.info("City already exists: " + citylist[0])
-                        return
-                    sql_search_area = """insert
-                                into search_area (name)
-                                values (%s)"""
-                    cur.execute(sql_search_area, (citylist[0],))
-                    # city_id = cur.lastrowid
-                    sql_identity = """select
-                    currval('search_area_search_area_id_seq')
-                    """
-                    cur.execute(sql_identity, ())
-                    search_area_id = cur.fetchone()[0]
                     sql_city = """insert
                             into city (name, search_area_id)
                             values (%s,%s)"""
                     cur.execute(sql_city, (city, search_area_id,))
-                    logger.info("Added city " + city)
-                    logger.debug(str(len(neighborhoods)) + " neighborhoods")
+                    logging.debug(str(len(neighborhoods)) + " neighborhoods")
                 if len(neighborhoods) > 0:
                     sql_neighborhood = """
                         insert into neighborhood(name, search_area_id)
@@ -265,22 +271,22 @@ def ws_get_city_info(config, city, flag):
                     for neighborhood in neighborhoods:
                         cur.execute(sql_neighborhood, (neighborhood,
                                                        search_area_id,))
-                        logger.info("Added neighborhood " + neighborhood)
+                        logging.info("Added neighborhood " + neighborhood)
                 else:
-                    logger.info("No neighborhoods found for " + city)
+                    logging.info("No neighborhoods found for " + city)
                 conn.commit()
         except UnicodeEncodeError:
             # if sys.version_info >= (3,):
-            #    logger.info(s.encode('utf8').decode(sys.stdout.encoding))
+            #    logging.info(s.encode('utf8').decode(sys.stdout.encoding))
             # else:
-            #    logger.info(s.encode('utf8'))
+            #    logging.info(s.encode('utf8'))
             # unhandled at the moment
             pass
         except Exception:
-            logger.error("Error collecting city and neighborhood information")
+            logging.error("Error collecting city and neighborhood information")
             raise
     except Exception:
-        logger.error("Error getting city info from website")
+        logging.error("Error getting city info from website")
         raise
 
 
@@ -301,7 +307,7 @@ def fill_loop_by_room(config, survey_id):
     while room_count < config.FILL_MAX_ROOM_COUNT:
         try:
             if len(config.HTTP_PROXY_LIST) == 0:
-                logger.info(
+                logging.info(
                     "No proxies left: re-initialize after {0} seconds".format(
                         config.RE_INIT_SLEEP_TIME))
                 time.sleep(config.RE_INIT_SLEEP_TIME)  # be nice
@@ -316,10 +322,10 @@ def fill_loop_by_room(config, survey_id):
                 else:  # Airbnb now seems to return nothing if a room has gone
                     listing.save_as_deleted()
         except AttributeError:
-            logger.error("Attribute error: marking room as deleted.")
+            logging.error("Attribute error: marking room as deleted.")
             listing.save_as_deleted()
         except Exception as e:
-            logger.error("Error in fill_loop_by_room:" + str(type(e)))
+            logging.error("Error in fill_loop_by_room:" + str(type(e)))
             raise
 
 
@@ -479,7 +485,7 @@ def main():
     except (SystemExit, KeyboardInterrupt):
         sys.exit()
     except Exception:
-        logger.exception("Top level exception handler: quitting.")
+        logging.exception("Top level exception handler: quitting.")
         sys.exit(0)
 
 if __name__ == "__main__":
