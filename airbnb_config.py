@@ -60,9 +60,9 @@ class ABConfig():
                 else:
                     username = os.environ['USER']
                 self.config_file = username + ".config"
-            logging.info("Reading configuration file " + self.config_file)
+            logger.info("Reading configuration file " + self.config_file)
             if not os.path.isfile(self.config_file):
-                logging.error("Configuration file " + self.config_file + " not found.")
+                logger.error("Configuration file " + self.config_file + " not found.")
                 sys.exit()
             config.read(self.config_file)
 
@@ -84,7 +84,7 @@ class ABConfig():
                 logger.warning("No proxy_list in " + config_file + ": not using proxies")
                 self.HTTP_PROXY_LIST = []
             self.HTTP_PROXY_LIST_COMPLETE = list(self.HTTP_PROXY_LIST)
-            logging.info("Complete proxy list has {p} proxies".format(p=len(self.HTTP_PROXY_LIST_COMPLETE)))
+            logger.info("Complete proxy list has {p} proxies".format(p=len(self.HTTP_PROXY_LIST_COMPLETE)))
             try:
                 self.USER_AGENT_LIST = config["NETWORK"]["user_agent_list"].split(",,")
                 self.USER_AGENT_LIST = [x.strip() for x in self.USER_AGENT_LIST]
