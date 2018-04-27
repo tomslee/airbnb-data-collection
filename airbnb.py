@@ -18,14 +18,12 @@ import logging
 import argparse
 import sys
 import time
-import requests
+import webbrowser
 from lxml import html
-from datetime import datetime
 import psycopg2
 import psycopg2.errorcodes
-import webbrowser
 from airbnb_config import ABConfig
-from airbnb_survey import ABSurvey, ABSurveyByBoundingBox
+from airbnb_survey import ABSurveyByBoundingBox
 from airbnb_survey import ABSurveyByNeighborhood, ABSurveyByZipcode
 from airbnb_listing import ABListing
 import airbnb_ws
@@ -35,7 +33,7 @@ import airbnb_ws
 # ============================================================================
 
 # Script version
-# 3.2 April 2018: fix for modified Airbnb site. Avoided loops over room types 
+# 3.2 April 2018: fix for modified Airbnb site. Avoided loops over room types
 #                 in -sb
 # 3.1 provides more efficient "-sb" searches, avoiding loops over guests and
 # prices. See example.config for details, and set a large max_zoom (eg 12).
@@ -50,6 +48,9 @@ SCRIPT_VERSION_NUMBER = 3.2
 # logging = logging.getLogger()
 
 def list_search_area_info(config, search_area):
+    """
+    Print a list of the search areas in the database to stdout.
+    """
     try:
         conn = config.connect()
         cur = conn.cursor()
@@ -91,8 +92,8 @@ def list_search_area_info(config, search_area):
             print("\t" + str(count) + " Airbnb cities.")
     except psycopg2.Error as pge:
         logging.error(pge.pgerror)
-        logging.error("Error code " + pge.pgcode)
-        logging.error("Diagnostics " + pge.diag.message_primary)
+        logging.error("Error code %s", pge.pgcode)
+        logging.error("Diagnostics %s", pge.diag.message_primary)
         cur.close()
         conn.rollback()
         raise
@@ -102,6 +103,9 @@ def list_search_area_info(config, search_area):
 
 
 def list_surveys(config):
+    """
+    Print a list of the surveys in the database to stdout.
+    """
     try:
         conn = config.connect()
         cur = conn.cursor()
@@ -114,9 +118,9 @@ def list_surveys(config):
             and survey_description is not null
             order by survey_id asc""")
         result_set = cur.fetchall()
-        if len(result_set) > 0:
+        if result_set:
             template = "| {0:3} | {1:>12} | {2:>50} | {3:3} | {4:3} |"
-            print(template.format("ID", "Date", "Description", "SA", "status"))
+            print (template.format("ID", "Date", "Description", "SA", "status"))
             for survey in result_set:
                 (survey_id, survey_date, desc, sa_id, status) = survey
                 print(template.format(survey_id, survey_date, desc, sa_id, status))
@@ -126,6 +130,9 @@ def list_surveys(config):
 
 
 def db_ping(config):
+    """
+    Test database connectivity, and print success or failure.
+    """
     try:
         conn = config.connect()
         if conn is not None:
@@ -137,6 +144,9 @@ def db_ping(config):
 
 
 def db_add_survey(config, search_area):
+    """
+    Add a survey entry to the database, so the survey can be run.
+    """
     try:
         conn = config.connect()
         cur = conn.cursor()
@@ -161,17 +171,21 @@ def db_add_survey(config, search_area):
          search_area_id) = cur.fetchone()
         conn.commit()
         cur.close()
-        print("\nSurvey added:\n" +
-              "\n\tsurvey_id=" + str(survey_id) +
-              "\n\tsurvey_date=" + str(survey_date) +
-              "\n\tsurvey_description=" + survey_description +
-              "\n\tsearch_area_id=" + str(search_area_id))
+        print("\nSurvey added:\n"
+              + "\n\tsurvey_id=" + str(survey_id)
+              + "\n\tsurvey_date=" + str(survey_date)
+              + "\n\tsurvey_description=" + survey_description
+              + "\n\tsearch_area_id=" + str(search_area_id))
     except Exception:
-        logging.error("Failed to add survey for " + search_area)
+        logging.error("Failed to add survey for %s", search_area)
         raise
 
 
 def db_get_room_to_fill(config, survey_id):
+    """
+    For "fill" runs (loops over room pages), choose a random room that has
+    not yet been visited in this "fill".
+    """
     for attempt in range(config.MAX_CONNECTION_ATTEMPTS):
         try:
             conn = config.connect()
@@ -203,39 +217,43 @@ def db_get_room_to_fill(config, survey_id):
         except TypeError:
             logging.info("Finishing: no unfilled rooms in database --")
             conn.rollback()
-            del (config.connection)
+            del config.connection
             return None
         except Exception:
             logging.exception("Error retrieving room to fill from db")
             conn.rollback()
-            del (config.connection)
+            del config.connection
     return None
 
 
 def ws_get_city_info(config, city, flag):
+    """
+    Get city information from Airbnb web site, when adding a city
+    (search area) to the database.
+    """
     try:
         logging.info("Adding city to database as new search area")
         # Add the city to the database anyway
         conn = config.connect()
         cur = conn.cursor()
         # check if it exists
-        sql_check = """
+        sql = """
         select name
         from search_area
         where name = %s"""
-        cur.execute(sql_check, (city,))
+        cur.execute(sql, (city,))
         if cur.fetchone() is not None:
-            logging.info("City already exists: " + city)
-            return
+            logging.info("City already exists: %s", city)
+            return True
         # Insert the city into the table
-        sql_search_area = """insert
+        sql = """insert
         into search_area (name)
         values (%s)"""
-        cur.execute(sql_search_area, (city,))
-        sql_identity = """select
+        cur.execute(sql, (city,))
+        sql = """select
         currval('search_area_search_area_id_seq')
         """
-        cur.execute(sql_identity, ())
+        cur.execute(sql, ())
         search_area_id = cur.fetchone()[0]
         # city_id = cur.lastrowid
         logging.info("City %s added: search_area_id = %d", city, search_area_id)
@@ -257,13 +275,13 @@ def ws_get_city_info(config, city, flag):
                 for neighborhood in neighborhoods:
                     print("\t", neighborhood)
             elif flag == config.FLAGS_ADD:
-                if len(citylist) > 0:
+                if citylist:
                     sql_city = """insert
                             into city (name, search_area_id)
                             values (%s,%s)"""
                     cur.execute(sql_city, (city, search_area_id,))
-                    logging.debug(str(len(neighborhoods)) + " neighborhoods")
-                if len(neighborhoods) > 0:
+                    logging.debug("%s neighborhoods", str(len(neighborhoods)))
+                if neighborhoods:
                     sql_neighborhood = """
                         insert into neighborhood(name, search_area_id)
                         values(%s, %s)
@@ -271,9 +289,9 @@ def ws_get_city_info(config, city, flag):
                     for neighborhood in neighborhoods:
                         cur.execute(sql_neighborhood, (neighborhood,
                                                        search_area_id,))
-                        logging.info("Added neighborhood " + neighborhood)
+                        logging.info("Added neighborhood %s", neighborhood)
                 else:
-                    logging.info("No neighborhoods found for " + city)
+                    logging.info("No neighborhoods found for %s", city)
                 conn.commit()
         except UnicodeEncodeError:
             # if sys.version_info >= (3,):
@@ -285,16 +303,23 @@ def ws_get_city_info(config, city, flag):
         except Exception:
             logging.error("Error collecting city and neighborhood information")
             raise
+        return True
     except Exception:
         logging.error("Error getting city info from website")
         raise
 
 
 def display_room(config, room_id):
+    """
+    Open a web browser and show the listing page for a room.
+    """
     webbrowser.open(config.URL_ROOM_ROOT + str(room_id))
 
 
 def display_host(config, host_id):
+    """
+    Open a web browser and show the user page for a host.
+    """
     webbrowser.open(config.URL_HOST_ROOT + str(host_id))
 
 
@@ -306,10 +331,10 @@ def fill_loop_by_room(config, survey_id):
     room_count = 0
     while room_count < config.FILL_MAX_ROOM_COUNT:
         try:
-            if len(config.HTTP_PROXY_LIST) == 0:
+            if not config.HTTP_PROXY_LIST:
                 logging.info(
-                    "No proxies left: re-initialize after {0} seconds".format(
-                        config.RE_INIT_SLEEP_TIME))
+                    "No proxies left: re-initialize after %s seconds",
+                    config.RE_INIT_SLEEP_TIME)
                 time.sleep(config.RE_INIT_SLEEP_TIME)  # be nice
                 config = ABConfig()
             room_count += 1
@@ -325,7 +350,7 @@ def fill_loop_by_room(config, survey_id):
             logging.error("Attribute error: marking room as deleted.")
             listing.save_as_deleted()
         except Exception as e:
-            logging.error("Error in fill_loop_by_room:" + str(type(e)))
+            logging.error("Error in fill_loop_by_room: %s", str(type(e)))
             raise
 
 
@@ -428,6 +453,9 @@ def parse_args():
 
 
 def main():
+    """
+    Main entry point for the program.
+    """
     (parser, args) = parse_args()
     logging.basicConfig(format='%(levelname)-8s%(message)s')
     ab_config = ABConfig(args)

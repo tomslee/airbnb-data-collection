@@ -1,19 +1,22 @@
 #!/usr/bin/python
+""" 
+Run reports on a log file from a survey
+"""
 from datetime import datetime
 import re
 import sys
 
 class printColor:
-   PURPLE = '\033[95m'
-   CYAN = '\033[96m'
-   DARKCYAN = '\033[36m'
-   BLUE = '\033[94m'
-   GREEN = '\033[92m'
-   YELLOW = '\033[93m'
-   RED = '\033[91m'
-   BOLD = '\033[1m'
-   UNDERLINE = '\033[4m'
-   END = '\033[0m'
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    DARKCYAN = '\033[36m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
 
 def runit(survey_id, details):
     filename = "survey-{}.log".format(survey_id)
@@ -25,15 +28,14 @@ def runit(survey_id, details):
     total_connection_error_count = 0
     node_results_list = []
     page_and_zoom_complete = 0
-    results = []
     # Collect data from lines in the log
     # 2018-02-07 05:17:02,836 INFO    Searching rectangle: Shared room, guests = 2, prices in [60, 80], zoom factor = 1
     # 2018-02-07 05:17:04,114 INFO    Page 01 returned 01 listings
     # 2018-02-07 05:17:04,114 INFO    Results:  1 pages, 20 new rooms
-    p_page = re.compile("([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}),([0-9]{3}) INFO    Page ([0-9]{2}) returned ([0-9]+) listings")
-    p_rectangle = re.compile("Searching rectangle:\s+zoom factor = ([0-9]+), node\s*=\s*(.*)")
-    p_result = re.compile("Results:\s+([0-9]+) pages, ([0-9]+) new rooms")
-    p_survey = re.compile("Survey\s+([0-9]+), for (.*)")
+    p_page = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}),([0-9]{3}) INFO    Page ([0-9]{2}) returned ([0-9]+) listings")
+    p_rectangle = re.compile(r"Searching rectangle:\s+zoom factor = ([0-9]+), node\s*=\s*(.*)")
+    p_result = re.compile(r"Results:\s+([0-9]+) pages, ([0-9]+) new rooms")
+    p_survey = re.compile(r"Survey\s+([0-9]+), for (.*)")
     p_max_zoom = re.compile("Searching by bounding box, max_zoom=([0-9]+)")
 
     # Read raw data from the log file
@@ -49,9 +51,10 @@ def runit(survey_id, details):
         if "Page" in line:
             match = p_page.match(line)
             dt_string = match.group(1)
-            dt_objects.append([datetime.strptime(dt_string, "%Y-%m-%d %H:%M:%S"), connection_error_count])
+            dt_objects.append([datetime.strptime(dt_string, "%Y-%m-%d %H:%M:%S"),
+                               connection_error_count])
             connection_error_count = 0
-            if zoom == max_zoom and int(match.group(3))==20 and int(match.group(4))==18:
+            if zoom == max_zoom and int(match.group(3)) == 20 and int(match.group(4)) == 18:
                 page_and_zoom_complete += 1
         # Node details (at beginning of a node searchk
         elif "Searching rectangle:" in line:
@@ -126,13 +129,13 @@ def runit(survey_id, details):
     # Not used right now: print details of response time and connection error distributions
     if details:
         print("Request time buckets")
-        for ix, val in enumerate(dt_buckets):
+        for index, val in enumerate(dt_buckets):
             if val > 0:
-                print(ix, val)
+                print(index, val)
         print("Connection error buckets")
-        for ix, val in enumerate(connection_error_buckets):
+        for index, val in enumerate(connection_error_buckets):
             if val > 0:
-                print(ix, val)
+                print(index, val)
 
     #------------------------------------------------------------------------
     # PRINT REPORT
@@ -140,7 +143,8 @@ def runit(survey_id, details):
     # Header
     print("")
     print("*" * 80)
-    print("{}\tSearch results for {}, survey {} on {}{}".format(printColor.BOLD, 
+    print("{}\tSearch results for {}, survey {} on {}{}".format(
+        printColor.BOLD,
         search_area, survey_id, survey_start_date, printColor.END))
     print("")
 
@@ -172,10 +176,12 @@ def runit(survey_id, details):
     print("\tTotal request count\t{}".format(total_request_count))
     print("\tRequests per listing\t{0:.2f}".format(float(total_request_count)/total_listing_count))
     print("\tMean response time\t{0:.1f} seconds".format(mean_response_time))
-    print("\tTotal request time\t{0:.1f} hours".format(total_request_count * mean_response_time / 3600.0))
+    print("\tTotal request time\t{0:.1f} hours"
+          .format(total_request_count * mean_response_time / 3600.0))
     print("\tConnection error count\t{}".format(total_connection_error_count))
     if total_connection_error_count > 0:
-        print("\tRequests per error\t{0:.0f}".format(total_request_count / total_connection_error_count))
+        print("\tRequests per error\t{0:.0f}"
+              .format(total_request_count / total_connection_error_count))
     else:
         print("\tRequests per error\tNaN")
     print("\tExhausted searches\t{}".format(page_and_zoom_complete))
@@ -196,4 +202,3 @@ else:
     print("\n")
     print("Usage: python survey_report.py <survey_id>")
     print("where you have a log file survey-<survey_id>.log")
-

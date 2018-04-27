@@ -3,12 +3,11 @@
 # Airbnb Configuration module, for use in web scraping and analytics
 # ============================================================================
 import logging
-import psycopg2
-import psycopg2.errorcodes
 import os
 import configparser
 import sys
-from datetime import datetime
+import psycopg2
+import psycopg2.errorcodes
 
 logger = logging.getLogger()
 
@@ -20,7 +19,7 @@ class ABConfig():
         self.config_file = None
         self.log_level = logging.INFO
         if args is not None:
-            self.config_file=args.config_file
+            self.config_file = args.config_file
             try:
                 if args.verbose:
                     self.log_level = logging.DEBUG
@@ -60,9 +59,9 @@ class ABConfig():
                 else:
                     username = os.environ['USER']
                 self.config_file = username + ".config"
-            logging.info("Reading configuration file " + self.config_file)
+            logging.info("Reading configuration file %s", self.config_file)
             if not os.path.isfile(self.config_file):
-                logging.error("Configuration file " + self.config_file + " not found.")
+                logging.error("Configuration file %s not found.", self.config_file)
                 sys.exit()
             config.read(self.config_file)
 
@@ -74,17 +73,20 @@ class ABConfig():
                 self.DB_USER = config["DATABASE"]["db_user"]
                 self.DB_PASSWORD = config["DATABASE"]["db_password"]
             except Exception:
-                logger.error("Incomplete database information in " + config_file + ": cannot continue.")
+                logger.error("Incomplete database information in %s: cannot continue",
+                             self.config_file)
                 sys.exit()
             # network
             try:
                 self.HTTP_PROXY_LIST = config["NETWORK"]["proxy_list"].split(",")
                 self.HTTP_PROXY_LIST = [x.strip() for x in self.HTTP_PROXY_LIST]
             except Exception:
-                logger.warning("No proxy_list in " + config_file + ": not using proxies")
+                logger.warning("No proxy_list in %s: not using proxies",
+                               self.config_file)
                 self.HTTP_PROXY_LIST = []
             self.HTTP_PROXY_LIST_COMPLETE = list(self.HTTP_PROXY_LIST)
-            logging.info("Complete proxy list has {p} proxies".format(p=len(self.HTTP_PROXY_LIST_COMPLETE)))
+            logging.info("Complete proxy list has %s proxies",
+                         len(self.HTTP_PROXY_LIST_COMPLETE))
             try:
                 self.USER_AGENT_LIST = config["NETWORK"]["user_agent_list"].split(",,")
                 self.USER_AGENT_LIST = [x.strip() for x in self.USER_AGENT_LIST]
@@ -116,7 +118,8 @@ class ABConfig():
         """ Return a connection to the database"""
         try:
             if (not hasattr(self, "connection") or
-                self.connection is None or self.connection.closed != 0):
+                    self.connection is None or
+                    self.connection.closed != 0):
                 cattr = dict(
                     user=self.DB_USER,
                     password=self.DB_PASSWORD,
@@ -124,9 +127,9 @@ class ABConfig():
                 )
                 if self.DB_HOST is not None:
                     cattr.update(dict(
-                                host=self.DB_HOST,
-                                port=self.DB_PORT,
-                                ))
+                        host=self.DB_HOST,
+                        port=self.DB_PORT,
+                    ))
                 self.connection = psycopg2.connect(**cattr)
                 self.connection.set_client_encoding('UTF8')
             return self.connection
@@ -136,3 +139,4 @@ class ABConfig():
         except Exception:
             logger.error("Failed to connect to database.")
             raise
+
