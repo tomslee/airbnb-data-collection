@@ -10,7 +10,7 @@ LOG_LEVEL = logging.INFO
 # Set up logging
 LOG_FORMAT = '%(levelname)-8s%(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
-DEFAULT_START_DATE = '2013-05-02'
+DEFAULT_START_DATE = '2017-05-02'
 
 
 def survey_df(ab_config, city, start_date):
