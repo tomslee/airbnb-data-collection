@@ -599,7 +599,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                                     if listing.save(self.config.FLAGS_INSERT_NO_REPLACE):
                                         new_rooms += 1
                                 elif flag == self.config.FLAGS_PRINT:
-                                    print(room_type, listing.room_id)
+                                    print(listing.room_type, listing.room_id)
 
                 # Log page-level results
                 logger.info("Page {page_number:02d} returned {room_count:02d} listings"
@@ -695,16 +695,16 @@ class ABSurveyByBoundingBox(ABSurvey):
         # Return if the child subtree of this node was completed
         # in a previous survey run
         subtree_previously_completed = False
-        if len(quadtree_node) > 0 and self.logged_progress is not None:
+        if len(quadtree_node) > 1 and self.logged_progress is not None:
             s_this_quadrant = ''.join(str(quadtree_node[i][j])
-                    for j in range(0,2)
-                    for i in range(0,len(quadtree_node)))
+                    for j in range(0, 2)
+                    for i in range(0, len(quadtree_node)))
             s_logged_progress = ''.join(str(self.logged_progress["quadtree"][i][j])
-                    for j in range(0,2)
-                    for i in range(0,len(quadtree_node)))
+                    for j in range(0, 2)
+                    for i in range(0, len(quadtree_node)))
             if int(s_this_quadrant) < int(s_logged_progress):
                 subtree_previously_completed = True
-                logger.debug("Subtree previously completed: {quadtree}".format(quadtree=quadtree_node))
+                logger.debug("Subtree previously completed: %s", quadtree_node)
         return subtree_previously_completed
 
 
@@ -755,7 +755,8 @@ class ABSurveyByNeighborhood(ABSurvey):
         ABSurvey.update_survey_entry(self, self.config.SEARCH_BY_NEIGHBORHOOD)
         if self.search_area_name == self.config.SEARCH_AREA_GLOBAL:
             # "Special case": global search
-            self.__global_search()
+            # self.__global_search()
+            logger.error("Global search not currently implemented")
         else:
             logger.info("Searching by neighborhood")
             neighborhoods = self.get_neighborhoods_from_search_area()
@@ -920,8 +921,8 @@ class ABSurveyByNeighborhood(ABSurvey):
             cur.close()
             return neighborhoods
         except Exception:
-            logger.error("Failed to retrieve neighborhoods from " +
-                        str(search_area_id))
+            logger.error("Failed to retrieve neighborhoods from %s",
+                         self.search_area_id)
             raise
 
 

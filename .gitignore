@@ -23,6 +23,7 @@ googlemaps.py
 /img/*
 /reports/*
 /backup/*
+/dbbackup/*
 /geojson/*
 /gis/*
 /insideairbnb/*

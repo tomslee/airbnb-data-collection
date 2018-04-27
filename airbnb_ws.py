@@ -1,10 +1,10 @@
 #!/usr/bin/python3
-# ============================================================================
-# Tom Slee, 2013--2017.
-#
-# Functions for making and handling requests from the Airbnb web site
-# TODO: Make this into a class
-# ============================================================================
+"""
+Functions to request data from the Airbnb web site, and to manage
+a set of requests.
+
+Tom Slee, 2013--2017.
+"""
 import logging
 import sys
 import random
@@ -17,7 +17,13 @@ logger = logging.getLogger()
 
 
 def ws_request_with_repeats(config, url, params=None):
-    # Return None on failure
+    """ An attempt to get data from Airbnb. The function wraps
+    a number of individual attempts, each of which may fail
+    occasionally, in an attempt to get a more reliable
+    data set.
+
+    Returns None on failure
+    """
     logger.debug(url)
     for attempt_id in range(config.MAX_CONNECTION_ATTEMPTS):
         try:
@@ -31,8 +37,8 @@ def ws_request_with_repeats(config, url, params=None):
         except AttributeError:
             logger.exception("AttributeError retrieving page")
         except Exception as ex:
-            logger.error("Failed to retrieve web page " + url)
-            logger.exception("Exception retrieving page: " + str(type(ex)))
+            logger.error("Failed to retrieve web page %s", url)
+            logger.exception("Exception retrieving page: %s", str(type(ex)))
             # Failed
     return None
 
@@ -73,40 +79,41 @@ def ws_individual_request(config, url, attempt_id, params=None):
         # cookie to avoid auto-redirect
         cookies = dict(sticky_locale='en')
         response = requests.get(url, params, timeout=timeout,
-                headers=headers, cookies=cookies, proxies=proxies)
+                                headers=headers, cookies=cookies, proxies=proxies)
         if response.status_code < 300:
             return response
         else:
             if http_proxy:
-                logger.warning("HTTP status {s} from web site: IP address {a} may be blocked"
-                    .format(s=response.status_code, a=http_proxy))
+                logger.warning(
+                    "HTTP status %s from web site: IP address %s may be blocked",
+                    response.status_code, http_proxy)
                 if len(config.HTTP_PROXY_LIST) > 0:
                     # randomly remove the proxy from the list, with probability 50%
                     if random.choice([True, False]):
                         config.HTTP_PROXY_LIST.remove(http_proxy)
                         logger.warning(
-                            "Removing {http_proxy} from proxy list; {n} of {p} remain."
-                            .format( http_proxy=http_proxy,
-                                n=len(config.HTTP_PROXY_LIST),
-                                p=len(config.HTTP_PROXY_LIST_COMPLETE)))
+                            "Removing %s from proxy list; %s of %s remain",
+                            http_proxy, len(config.HTTP_PROXY_LIST),
+                            len(config.HTTP_PROXY_LIST_COMPLETE))
                     else:
                         logger.warning(
-                            "Not removing {http_proxy} from proxy list this time; still {n} of {p}."
-                            .format( http_proxy=http_proxy,
-                                n=len(config.HTTP_PROXY_LIST),
-                                p=len(config.HTTP_PROXY_LIST_COMPLETE)))
+                            "Not removing %s from proxy list this time; still %s of %s",
+                            http_proxy, len(config.HTTP_PROXY_LIST),
+                            len(config.HTTP_PROXY_LIST_COMPLETE))
                 if len(config.HTTP_PROXY_LIST) == 0:
                     # fill proxy list again, wait a long time, then restart
-                    logger.warning("No proxies remain. Resetting proxy list and waiting {m} minutes."
-                        .format(m=(config.RE_INIT_SLEEP_TIME / 60.0)))
+                    logger.warning(("No proxies remain."
+                                    "Resetting proxy list and waiting %s minutes."),
+                                   (config.RE_INIT_SLEEP_TIME / 60.0))
                     config.HTTP_PROXY_LIST = list(config.HTTP_PROXY_LIST_COMPLETE)
                     time.sleep(config.RE_INIT_SLEEP_TIME)
                     config.REQUEST_SLEEP += 1.0
-                    logger.warning("Adding one second to request sleep time. Now {s}"
-                        .format(s=config.REQUEST_SLEEP))
+                    logger.warning("Adding one second to request sleep time.  Now %s",
+                                   config.REQUEST_SLEEP)
             else:
-                logger.warning("HTTP status {s} from web site: IP address blocked. Waiting {m} minutes."
-                        .format(s=response.status_code, m=(config.RE_INIT_SLEEP_TIME / 60.0)))
+                logger.warning(("HTTP status %s from web site: IP address blocked."
+                                "Waiting %s minutes."),
+                               response.status_code, (config.RE_INIT_SLEEP_TIME / 60.0))
                 time.sleep(config.RE_INIT_SLEEP_TIME)
                 config.REQUEST_SLEEP += 1.0
             return response
@@ -116,20 +123,21 @@ def ws_individual_request(config, url, attempt_id, params=None):
         # For requests error and exceptions, see
         # http://docs.python-requests.org/en/latest/user/quickstart/
         # errors-and-exceptions
-        logger.warning("Network request exception {a}: connectionError".format(a=attempt_id))
+        logger.warning("Network request %s: connectionError. Bad proxy %s?",
+                       attempt_id, http_proxy)
         return None
     except requests.exceptions.HTTPError:
-        logger.error("Network request exception {a}: invalid HTTP response".format(a=attempt_id))
+        logger.error("Network request exception %s: invalid HTTP response", attempt_id)
         return None
     except requests.exceptions.Timeout:
-        logger.warning("Network request exception {a}: timeout".format(a=attempt_id))
+        logger.warning("Network request exception %s: timeout", attempt_id)
         return None
     except requests.exceptions.TooManyRedirects:
-        logger.error("Network request exception {a}: too many redirects".format(a=attempt_id))
+        logger.error("Network request exception %s: too many redirects", attempt_id)
         return None
     except requests.exceptions.RequestException:
-        logger.error("Network request exception {a}: unidentified requests".format(a=attempt_id))
+        logger.error("Network request exception %s: unidentified requests", attempt_id)
         return None
     except Exception as e:
-        logger.exception("Network request exception: type " + type(e).__name__)
+        logger.exception("Network request exception: type %s", type(e).__name__)
         return None
