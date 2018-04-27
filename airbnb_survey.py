@@ -244,7 +244,7 @@ class ABSurvey():
                     has_rooms = -1
                 else:
                     params = (self.survey_id, room_type, neighborhood, guests,
-                            page_number,)
+                              page_number,)
                     logger.debug("Params: " + str(params))
                     sql = """
                     select spl.has_rooms
@@ -258,8 +258,8 @@ class ABSurvey():
                     and page_number = %s"""
                     cur.execute(sql, params)
                     has_rooms = cur.fetchone()[0]
-                    logger.debug("has_rooms = " + str(has_rooms) +
-                                " for neighborhood " + neighborhood)
+                    logger.debug("has_rooms = %s for neighborhood %s",
+                                 str(has_rooms), neighborhood)
             else:  # SEARCH_BY_ZIPCODE
                 zipcode = int(neighborhood_or_zipcode)
                 params = (self.survey_id, room_type, zipcode, guests, page_number,)
@@ -274,8 +274,8 @@ class ABSurvey():
                     and page_number = %s"""
                 cur.execute(sql, params)
                 has_rooms = cur.fetchone()[0]
-                logger.debug("has_rooms = " + str(has_rooms) +
-                            " for zipcode " + str(zipcode))
+                logger.debug("has_rooms = %s for zipcode %s",
+                             str(has_rooms), str(zipcode))
         except Exception:
             has_rooms = -1
             logger.debug("Page has not been retrieved previously")
@@ -320,8 +320,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                 logged_progress["price_range"] = [row[2], row[3]]
                 logged_progress["quadtree"] = eval(row[4])
                 logged_progress["median"] = eval(row[5])
-                logger.info( """Retrieved logged progress: {rt}, {g} guests, price {pmin}-{pmax}""".
-                format(rt = logged_progress["room_type"],
+                logger.info("""Retrieved logged progress: {rt}, {g} guests, price {pmin}-{pmax}""".
+                format(rt=logged_progress["room_type"],
                     g=logged_progress["guests"],
                     pmin=logged_progress["price_range"][0],
                     pmax=logged_progress["price_range"][1]))
@@ -443,7 +443,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 logger.debug("Node previously searched: {quadtree}".format(quadtree=quadtree_node))
 
             # Recurse through the tree
-            if zoomable: 
+            if zoomable:
                # and len(self.logged_progress["quadtree"]) >= len(quadtree_node)):
                 # append a node to the quadtree for a new level
                 quadtree_node.append([0,0])
@@ -451,14 +451,14 @@ class ABSurveyByBoundingBox(ABSurvey):
                 for int_leaf in range(4):
                     # Loop over [0,0], [0,1], [1,0], [1,1]
                     quadtree_leaf = [int(i)
-                            for i in str(bin(int_leaf))[2:].zfill(2)]
+                                     for i in str(bin(int_leaf))[2:].zfill(2)]
                     quadtree_node[-1] = quadtree_leaf
                     self.recurse_quadtree(quadtree_node, median_node, flag)
-                # the search of the quadtree below this node is complete: 
+                # the search of the quadtree below this node is complete:
                 # remove the leaf element from the tree and return to go up a level
                 del quadtree_node[-1]
                 del median_node[-1]
-            logger.debug("Returning from recurse_quadtree for {}".format(quadtree_node))
+            logger.debug("Returning from recurse_quadtree for %s", quadtree_node)
             if flag == self.config.FLAGS_PRINT:
                 # for FLAGS_PRINT, fetch one page and print it
                 sys.exit(0)
@@ -521,8 +521,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # to be conservative go to the next page rather than the next rectangle
                 if response is None:
                     logger.warning(
-                        "No response received from request despite multiple attempts: {p}"
-                            .format(p=params))
+                        "No response received from request despite multiple attempts: %s",
+                        params)
                     continue
                 soup = BeautifulSoup(response.content.decode("utf-8", "ignore"), "lxml")
                 html_file = open("test.html", mode="w", encoding="utf-8")
@@ -531,9 +531,10 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # The returned page includes a script tag that encloses a
                 # comment. The comment in turn includes a complex json
                 # structure as a string, which has the data we need
-                spaspabundlejs_set = soup.find_all("script", {"type": "application/json",
-                                                  "data-hypernova-key": "spaspabundlejs" })
-                if len(spaspabundlejs_set) > 0:
+                spaspabundlejs_set = soup.find_all("script",
+                                                   {"type": "application/json",
+                                                    "data-hypernova-key": "spaspabundlejs"})
+                if spaspabundlejs_set:
                     logger.debug("Found spaspabundlejs tag")
                     comment = spaspabundlejs_set[0].contents[0]
                     # strip out the comment tags (everything outside the
@@ -561,7 +562,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                     if isinstance(json_doc, dict):
                         if key in json_doc.keys():
                             found.append(json_doc[key])
-                        elif len(json_doc.keys()) > 0:
+                        elif json_doc.keys():
                             for json_key in json_doc.keys():
                                 result_list = search_json_keys(key, json_doc[json_key])
                                 if result_list:
@@ -578,7 +579,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # dict for the listing in question
                 # There may be multiple lists of listings
                 json_listings_lists = search_json_keys("listings", json_doc)
-                
+
                 room_count = 0
                 for json_listings in json_listings_lists:
                     for json_listing in json_listings:
@@ -599,7 +600,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                                     if listing.save(self.config.FLAGS_INSERT_NO_REPLACE):
                                         new_rooms += 1
                                 elif flag == self.config.FLAGS_PRINT:
-                                    print(room_type, listing.room_id)
+                                    print(listing.room_type, listing.room_id)
 
                 # Log page-level results
                 logger.info("Page {page_number:02d} returned {room_count:02d} listings"
@@ -754,8 +755,9 @@ class ABSurveyByNeighborhood(ABSurvey):
         ))
         ABSurvey.update_survey_entry(self, self.config.SEARCH_BY_NEIGHBORHOOD)
         if self.search_area_name == self.config.SEARCH_AREA_GLOBAL:
-            # "Special case": global search
-            self.__global_search()
+            # "Special case": global search not currently working
+            # self.__global_search()
+            pass
         else:
             logger.info("Searching by neighborhood")
             neighborhoods = self.get_neighborhoods_from_search_area()
@@ -920,8 +922,8 @@ class ABSurveyByNeighborhood(ABSurvey):
             cur.close()
             return neighborhoods
         except Exception:
-            logger.error("Failed to retrieve neighborhoods from " +
-                        str(search_area_id))
+            logger.error("Failed to retrieve neighborhoods from %s",
+                         str(self.search_area_id))
             raise
 
 
@@ -946,7 +948,7 @@ class ABSurveyByZipcode(ABSurvey):
                 for zipcode in zipcodes:
                     i += 1
                     self.__search_zipcode(str(zipcode), room_type, self.survey_id,
-                                        flag, self.search_area_name)
+                                          flag, self.search_area_name)
             except Exception:
                 raise
         self.fini()
@@ -1012,7 +1014,7 @@ class ABSurveyByZipcode(ABSurvey):
             raise
 
     def get_search_page_info_zipcode(self, room_type,
-                                        zipcode, guests, section_offset, flag):
+                                     zipcode, guests, section_offset, flag):
         try:
             logger.info("-" * 70)
             logger.info(room_type + ", zipcode " + str(zipcode) + ", " +
@@ -1026,7 +1028,9 @@ class ABSurveyByZipcode(ABSurvey):
             params["source"] = "filter"
             params["location"] = zipcode
             params["room_types[]"] = room_type
-            response = airbnb_ws.ws_request_with_repeats(self.config, self.config.URL_API_SEARCH_ROOT, params)
+            response = airbnb_ws.ws_request_with_repeats(self.config,
+                                                         self.config.URL_API_SEARCH_ROOT,
+                                                         params)
             json = response.json()
             for result in json["results_json"]["search_results"]:
                 room_id = int(result["listing"]["id"])
@@ -1048,7 +1052,7 @@ class ABSurveyByZipcode(ABSurvey):
                 has_rooms = 0
             if flag == self.config.FLAGS_ADD:
                 self.log_progress(room_type, zipcode,
-                                    guests, section_offset, has_rooms)
+                                  guests, section_offset, has_rooms)
             else:
                 logger.info("No rooms found")
             return room_count
@@ -1096,3 +1100,4 @@ def ABSurveyGlobal(ABSurvey):
                 logger.exception("Error in search:" + str(type(ex)))
                 raise
         self.fini()
+
