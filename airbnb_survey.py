@@ -291,16 +291,22 @@ class ABSurveyByBoundingBox(ABSurvey):
     boxes: recursively searching rectangles.
     """
 
+
     def __init__(self, config, survey_id):
         super().__init__(config, survey_id)
+        self.search_node_counter = 0
         self.get_logged_progress()
         self.get_bounding_box()
 
     def get_logged_progress(self):
+        """
+        Retrieve from the database the progress logged in previous attempts to
+        carry out this survey, to pick up where we left off.
+        Returns None if there is no progress logged.
+        """
         try:
             sql = """
-            select room_type, guests, price_min, price_max,
-            quadtree_node, median_node
+            select quadtree_node, median_node
             from survey_progress_log_bb
             where survey_id = %s
             """
@@ -311,24 +317,15 @@ class ABSurveyByBoundingBox(ABSurvey):
             cur.close()
             conn.commit()
             if row is None:
-                logger.debug("No progress logged for survey {}".format(self.survey_id))
+                logger.debug("No progress logged for survey %s", self.survey_id)
                 self.logged_progress = None
             else:
                 logged_progress = {}
-                logged_progress["room_type"] = row[0]
-                logged_progress["guests"] = row[1]
-                logged_progress["price_range"] = [row[2], row[3]]
-                logged_progress["quadtree"] = eval(row[4])
-                logged_progress["median"] = eval(row[5])
-                logger.info("""Retrieved logged progress: {rt}, {g} guests, price {pmin}-{pmax}""".
-                format(rt=logged_progress["room_type"],
-                    g=logged_progress["guests"],
-                    pmin=logged_progress["price_range"][0],
-                    pmax=logged_progress["price_range"][1]))
-                logger.info("\tquadtree node {quadtree}"
-                        .format(quadtree=repr(logged_progress["quadtree"])))
-                logger.info("\tmedian node {median}"
-                        .format(median=repr(logged_progress["median"])))
+                logged_progress["quadtree"] = eval(row[0])
+                logged_progress["median"] = eval(row[1])
+                logger.info("\tRetrieved logged progress: quadtree node %s",
+                            logged_progress["quadtree"])
+                logger.info("\tmedian node %s", logged_progress["median"])
                 self.logged_progress = logged_progress
         except Exception:
             logger.exception("Exception in get_progress: setting logged progress to None")
@@ -486,7 +483,6 @@ class ABSurveyByBoundingBox(ABSurvey):
                 n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
             )
             new_rooms = 0
-            room_quadtree_total = 0
             # set zoomable to false if the search finishes withoug returning a
             # full complement of 20 pages, 18 listings per page
             zoomable = True
@@ -498,59 +494,142 @@ class ABSurveyByBoundingBox(ABSurvey):
             median_lists["latitude"] = []
             median_lists["longitude"] = []
             for section_offset in range(0, self.config.SEARCH_MAX_PAGES):
+                self.search_node_counter += 1
                 # section_offset is the zero-based counter used on the site
                 # page number is convenient for logging, etc
                 page_number = section_offset + 1
                 room_count = 0
-                # set up the parameters for the request
-                params = {}
-                params["source"] = "filter"
-                params["refinement_paths[]"] = "homes"
-                params["sw_lat"] = str(rectangle[2])
-                params["sw_lng"] = str(rectangle[3])
-                params["ne_lat"] = str(rectangle[0])
-                params["ne_lng"] = str(rectangle[1])
-                params["search_by_map"] = str(True)
-                if section_offset > 0:
-                    params["section_offset"] = str(section_offset)
-                # make the http request
-                response = airbnb_ws.ws_request_with_repeats(
-                    self.config, self.config.URL_API_SEARCH_ROOT, params)
-                # process the response
-                # If no response, maybe it's a network problem rather than a lack of data, so
-                # to be conservative go to the next page rather than the next rectangle
-                if response is None:
-                    logger.warning(
-                        "No response received from request despite multiple attempts: %s",
-                        params)
-                    continue
-                soup = BeautifulSoup(response.content.decode("utf-8", "ignore"), "lxml")
-                html_file = open("test.html", mode="w", encoding="utf-8")
-                html_file.write(soup.prettify())
-                html_file.close()
-                # The returned page includes a script tag that encloses a
-                # comment. The comment in turn includes a complex json
-                # structure as a string, which has the data we need
-                spaspabundlejs_set = soup.find_all("script",
-                                                   {"type": "application/json",
-                                                    "data-hypernova-key": "spaspabundlejs"})
-                if spaspabundlejs_set:
-                    logger.debug("Found spaspabundlejs tag")
-                    comment = spaspabundlejs_set[0].contents[0]
-                    # strip out the comment tags (everything outside the
-                    # outermost curly braces)
-                    json_doc = json.loads(comment[comment.find("{"):comment.rfind("}")+1])
-                    logger.debug("results-containing json found")
-                else:
-                    logger.warning("json results-containing script node "
-                                   "(spaspabundlejs) not found in the web page: "
-                                   "go to next page")
-                    return None
-                # Now we have the json. It includes a list of 18 or fewer listings
-                json_file = open("listing_json.json", mode="w", encoding="utf-8")
-                json_file.write(json.dumps(json_doc, indent=4, sort_keys=True))
-                json_file.close()
 
+                if self.config.API_KEY:
+                    # API (returns JSON)
+                    # set up the parameters for the request
+                    logger.debug("API key found: using API search at %s",
+                                 self.config.URL_API_SEARCH_ROOT) 
+                    params = {}
+                    params["version"] = "1.3.5"
+                    params["_format"] = "for_explore_search_web"
+                    params["experiences_per_grid"] = str(20)
+                    params["items_per_grid"] = str(18)
+                    params["guidebooks_per_grid"] = str(20)
+                    params["auto_ib"] = str(True)
+                    params["fetch_filters"] = str(True)
+                    params["has_zero_guest_treatment"] = str(True)
+                    params["is_guided_search"] = str(True)
+                    params["is_new_cards_experiment"] = str(True)
+                    params["luxury_pre_launch"] = str(False)
+                    params["query_understanding_enabled"] = str(True)
+                    params["show_groupings"] = str(True)
+                    params["supports_for_you_v3"] = str(True)
+                    params["timezone_offset"] = "-240"
+                    params["metadata_only"] = str(False)
+                    params["is_standard_search"] = str(True)
+                    params["refinement_paths[]"] = "/homes"
+                    params["selected_tab_id"] = "home_tab"
+                    params["allow_override[]"] = ""
+                    params["ne_lat"] = str(rectangle[0])
+                    params["ne_lng"] = str(rectangle[1])
+                    params["sw_lat"] = str(rectangle[2])
+                    params["sw_lng"] = str(rectangle[3])
+                    params["search_by_map"] = str(True)
+                    params["screen_size"] = "medium"
+                    params["_intents"] = "p1"
+                    params["key"] = self.config.API_KEY
+                    params["client_session_id"] = self.config.CLIENT_SESSION_ID
+                    # params["zoom"] = str(True)
+                    # params["federated_search_session_id"] = "45de42ea-60d4-49a9-9335-9e52789cd306"
+                    # params["query"] = "Lisbon Portugal"
+                    # params["currency"] = "CAD"
+                    # params["locale"] = "en-CA"
+                    if section_offset > 0:
+                        params["section_offset"] = str(section_offset)
+                    # make the http request
+                    response = airbnb_ws.ws_request_with_repeats(
+                        self.config, self.config.URL_API_SEARCH_ROOT, params)
+                    # process the response
+                    if response:
+                        json_doc = json.loads(response.text)
+                    else:
+                        # If else:no response, maybe it's a network problem rather than a lack of data, so
+                        # to be conserelse:vative go to the next page rather than the next rectangle
+                        logger.warning(
+                            "No response received from request despite multiple attempts: %s",
+                            params)
+                        continue
+                else:
+                    # Web page (returns HTML)
+                    logger.debug("No API key found in config file: using web search at %s",
+                                 self.config.URL_API_SEARCH_ROOT) 
+                    params = {}
+                    params["source"] = "filter"
+                    params["_format"] = "for_explore_search_web"
+                    params["experiences_per_grid"] = str(20)
+                    params["items_per_grid"] = str(18)
+                    params["guidebooks_per_grid"] = str(20)
+                    params["auto_ib"] = str(True)
+                    params["fetch_filters"] = str(True)
+                    params["has_zero_guest_treatment"] = str(True)
+                    params["is_guided_search"] = str(True)
+                    params["is_new_cards_experiment"] = str(True)
+                    params["luxury_pre_launch"] = str(False)
+                    params["query_understanding_enabled"] = str(True)
+                    params["show_groupings"] = str(True)
+                    params["supports_for_you_v3"] = str(True)
+                    params["timezone_offset"] = "-240"
+                    params["metadata_only"] = str(False)
+                    params["is_standard_search"] = str(True)
+                    params["refinement_paths[]"] = "/homes"
+                    params["selected_tab_id"] = "home_tab"
+                    params["allow_override[]"] = ""
+                    params["ne_lat"] = str(rectangle[0])
+                    params["ne_lng"] = str(rectangle[1])
+                    params["sw_lat"] = str(rectangle[2])
+                    params["sw_lng"] = str(rectangle[3])
+                    params["search_by_map"] = str(True)
+                    params["screen_size"] = "medium"
+                    if section_offset > 0:
+                        params["section_offset"] = str(section_offset)
+                    # make the http request
+                    response = airbnb_ws.ws_request_with_repeats(
+                        self.config, self.config.URL_API_SEARCH_ROOT, params)
+                    # process the response
+                    if not response:
+                        # If else:no response, maybe it's a network problem rather than a lack of data, so
+                        # to be conserelse:vative go to the next page rather than the next rectangle
+                        logger.warning(
+                            "No response received from request despite multiple attempts: %s",
+                            params)
+                        continue
+                    soup = BeautifulSoup(response.content.decode("utf-8",
+                                                                 "ignore"),
+                                         "lxml")
+                    html_file = open("test.html", mode="w", encoding="utf-8")
+                    html_file.write(soup.prettify())
+                    html_file.close()
+                    # The returned page includes a script tag that encloses a
+                    # comment. The comment in turn includes a complex json
+                    # structure as a string, which has the data we need
+                    spaspabundlejs_set = soup.find_all("script",
+                                                       {"type": "application/json",
+                                                        "data-hypernova-key": "spaspabundlejs"})
+                    if spaspabundlejs_set:
+                        logger.debug("Found spaspabundlejs tag")
+                        comment = spaspabundlejs_set[0].contents[0]
+                        # strip out the comment tags (everything outside the
+                        # outermost curly braces)
+                        json_doc = json.loads(comment[comment.find("{"):comment.rfind("}")+1])
+                        logger.debug("results-containing json found")
+                    else:
+                        logger.warning("json results-containing script node "
+                                       "(spaspabundlejs) not found in the web page: "
+                                       "go to next page")
+                        return None
+                # Now we have the json. It includes a list of 18 or fewer listings
+                if logger.isEnabledFor(logging.DEBUG):
+                    json_file = open(
+                        "json_listing_{}.json".format(self.search_node_counter),
+                        mode="w", encoding="utf-8")
+                    json_file.write(json.dumps(json_doc, indent=4, sort_keys=True))
+                    json_file.close()
                 # Steal a function from StackOverflow which searches for items
                 # with a given list of keys (in this case just one: "listing")
                 # https://stackoverflow.com/questions/14048948/how-to-find-a-particular-json-value-by-key
@@ -579,6 +658,10 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # dict for the listing in question
                 # There may be multiple lists of listings
                 json_listings_lists = search_json_keys("listings", json_doc)
+                # json_doc = json_doc["explore_tabs"]
+                # if json_doc: logger.debug("json: explore_tabs")
+                # json_doc = json_doc["sections"]
+                # if json_doc: logger.debug("json: sections")
 
                 room_count = 0
                 for json_listings in json_listings_lists:
@@ -586,7 +669,6 @@ class ABSurveyByBoundingBox(ABSurvey):
                         room_id = int(json_listing["listing"]["id"])
                         if room_id is not None:
                             room_count += 1
-                            room_quadtree_total += 1
                             listing = self.listing_from_search_page_json(json_listing, room_id)
                             if listing is None:
                                 continue
@@ -698,11 +780,11 @@ class ABSurveyByBoundingBox(ABSurvey):
         subtree_previously_completed = False
         if len(quadtree_node) > 1 and self.logged_progress is not None:
             s_this_quadrant = ''.join(str(quadtree_node[i][j])
-                    for j in range(0, 2)
-                    for i in range(0, len(quadtree_node)))
+                                      for j in range(0, 2)
+                                      for i in range(0, len(quadtree_node)))
             s_logged_progress = ''.join(str(self.logged_progress["quadtree"][i][j])
-                    for j in range(0, 2)
-                    for i in range(0, len(quadtree_node)))
+                                        for j in range(0, 2)
+                                        for i in range(0, len(quadtree_node)))
             if int(s_this_quadrant) < int(s_logged_progress):
                 subtree_previously_completed = True
                 logger.debug("Subtree previously completed: %s", quadtree_node)

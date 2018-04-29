@@ -35,7 +35,6 @@ class ABConfig():
         self.URL_ROOT = "https://www.airbnb.com/"
         self.URL_ROOM_ROOT = self.URL_ROOT + "rooms/"
         self.URL_HOST_ROOT = self.URL_ROOT + "users/show/"
-        self.URL_SEARCH_ROOT = self.URL_ROOT + "s/"
         # self.URL_API_SEARCH_ROOT = self.URL_ROOT + "search/search_results"
         self.URL_API_SEARCH_ROOT = self.URL_ROOT + "s/homes"
         self.SEARCH_AREA_GLOBAL = "UNKNOWN"  # special case: sample listings globally
@@ -99,6 +98,26 @@ class ABConfig():
                 int(config["NETWORK"]["max_connection_attempts"])
             self.REQUEST_SLEEP = float(config["NETWORK"]["request_sleep"])
             self.HTTP_TIMEOUT = float(config["NETWORK"]["http_timeout"])
+            try:
+                self.URL_API_SEARCH_ROOT = config["NETWORK"]["url_api_search_root"]
+            except: 
+                logger.warning("Missing config file entry: url_api_search_root.")
+                logger.warning("For more information, see example.config")
+                self.URL_API_SEARCH_ROOT = self.URL_ROOT + "s/homes"
+            try:
+                self.API_KEY = config["NETWORK"]["api_key"]
+            except: 
+                logger.warning("Missing config file entry: api_key.")
+                logger.warning("For more information, see example.config")
+                self.API_KEY = None
+            if self.API_KEY is None or self.API_KEY=="":
+                self.URL_API_SEARCH_ROOT = self.URL_ROOT + "s/homes"
+            try:
+                self.CLIENT_SESSION_ID = config["NETWORK"]["client_session_id"]
+            except: 
+                logger.warning("Missing config file entry: client_session_id.")
+                logger.warning("For more information, see example.config")
+                self.CLIENT_SESSION_ID = None
 
             # survey
             self.FILL_MAX_ROOM_COUNT = int(config["SURVEY"]["fill_max_room_count"])
@@ -108,6 +127,7 @@ class ABConfig():
             self.SEARCH_MAX_RECTANGLE_ZOOM = int(
                 config["SURVEY"]["search_max_rectangle_zoom"])
             self.RE_INIT_SLEEP_TIME = float(config["SURVEY"]["re_init_sleep_time"])
+
 
         except Exception:
             logger.exception("Failed to read config file properly")
