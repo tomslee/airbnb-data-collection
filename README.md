@@ -4,9 +4,17 @@
 
 The script scrapes the Airbnb web site to collect data about the shape of the company's business. No guarantees are made about the quality of data obtained using this script, statistically or about an individual page. So please check your results.
 
-Sometimes the Airbnb site refuses repeated requests. I run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services. If you would rather not make the attempt yourself, I will be happy to run collections for you when time allows.
+Sometimes the Airbnb site refuses repeated requests. I run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services.
 
 ## Status and recent changes
+
+### April 2018 (3.3)
+
+After further changes to the Airbnb web site here is a new version, posted on April 29 2018. 
+
+For this version to work, you need to find a key value from the Airbnb web site and fill in the api_key and url_api_search_root values in the configuration file. See example.config for more information. I should emphasize that I do not know what the api_key signifies or communicates to Airbnb.
+
+The script still seems to miss a percentage of the listings in high-density areas (see comment in previous April 2018 entry).
 
 ### April 2018
 

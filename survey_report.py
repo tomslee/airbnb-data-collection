@@ -74,7 +74,7 @@ def runit(survey_id, details):
                      "pages": pages, "new_rooms": new_rooms}
                 )
         # Request error
-        elif "WARNING" in line and "Network request exception" in line:
+        elif "WARNING" in line and "connectionError" in line:
             total_connection_error_count += 1
         # For complete log files (one run, beginning to end), these items are in the header
         # Put them at the end of the ifs as they are rarely encountered

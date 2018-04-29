@@ -24,7 +24,7 @@ def ws_request_with_repeats(config, url, params=None):
 
     Returns None on failure
     """
-    logger.debug(url)
+    logger.debug("URL for this search: %s", url)
     for attempt_id in range(config.MAX_CONNECTION_ATTEMPTS):
         try:
             response = ws_individual_request(config, url, attempt_id, params)
