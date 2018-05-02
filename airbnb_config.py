@@ -127,6 +127,13 @@ class ABConfig():
             self.SEARCH_MAX_RECTANGLE_ZOOM = int(
                 config["SURVEY"]["search_max_rectangle_zoom"])
             self.RE_INIT_SLEEP_TIME = float(config["SURVEY"]["re_init_sleep_time"])
+            try:
+                self.SEARCH_RECTANGLE_EDGE_BLUR = float(
+                    config["SURVEY"]["search_rectangle_edge_blur"])
+            except:
+                logger.warning(
+                    "Missing config file entry: search_rectangle_edge_blur.")
+                logger.warning("For more information, see example.config")
 
 
         except Exception:

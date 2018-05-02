@@ -483,7 +483,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 n=rectangle[0], e=rectangle[1], s=rectangle[2], w=rectangle[3])
             )
             new_rooms = 0
-            # set zoomable to false if the search finishes withoug returning a
+            # set zoomable to false if the search finishes without returning a
             # full complement of 20 pages, 18 listings per page
             zoomable = True
 
