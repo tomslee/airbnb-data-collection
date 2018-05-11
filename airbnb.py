@@ -228,14 +228,13 @@ def db_get_room_to_fill(config, survey_id):
     return None
 
 
-def ws_get_city_info(config, city, flag):
+def db_add_search_area(config, search_area, flag):
     """
-    Get city information from Airbnb web site, when adding a city
-    (search area) to the database.
+    Add a search_area to the database.
     """
     try:
-        logging.info("Adding city to database as new search area")
-        # Add the city to the database anyway
+        logging.info("Adding search_area to database as new search area")
+        # Add the search_area to the database anyway
         conn = config.connect()
         cur = conn.cursor()
         # check if it exists
@@ -243,71 +242,43 @@ def ws_get_city_info(config, city, flag):
         select name
         from search_area
         where name = %s"""
-        cur.execute(sql, (city,))
+        cur.execute(sql, (search_area,))
         if cur.fetchone() is not None:
-            logging.info("City already exists: %s", city)
+            print("City already exists: {}".format(search_area))
             return True
-        # Insert the city into the table
-        sql = """insert
-        into search_area (name)
-        values (%s)"""
-        cur.execute(sql, (city,))
+        # Compute an abbreviation, which is optional and can be used
+        # as a suffix for search_area views (based on a shapefile)
+        # The abbreviation is lower case, has no whitespace, is 10 characters
+        # or less, and does not end with a whitespace character
+        # (translated as an underscore)
+        abbreviation = search_area.lower()[:10].replace(" ", "_")
+        while abbreviation[-1] == "_":
+            abbreviation = abbreviation[:-1]
+
+        # Insert the search_area into the table
+        sql = """insert into search_area (name, abbreviation)
+        values (%s, %s)"""
+        cur.execute(sql, (search_area, abbreviation,))
         sql = """select
         currval('search_area_search_area_id_seq')
         """
         cur.execute(sql, ())
         search_area_id = cur.fetchone()[0]
         # city_id = cur.lastrowid
-        logging.info("City %s added: search_area_id = %d", city, search_area_id)
-
-        url = config.URL_SEARCH_ROOT + city
-        logging.debug(url)
-        response = airbnb_ws.ws_request_with_repeats(config, url)
-        if response is None:
-            return False
-        tree = html.fromstring(response.text)
-        try:
-            citylist = tree.xpath(
-                "//input[@name='location']/@value")
-            neighborhoods = tree.xpath(
-                "//input[contains(@id, 'filter-option-neighborhoods')]/@value")
-            if flag == config.FLAGS_PRINT:
-                print("\n", citylist[0])
-                print("Neighborhoods:")
-                for neighborhood in neighborhoods:
-                    print("\t", neighborhood)
-            elif flag == config.FLAGS_ADD:
-                if citylist:
-                    sql_city = """insert
-                            into city (name, search_area_id)
-                            values (%s,%s)"""
-                    cur.execute(sql_city, (city, search_area_id,))
-                    logging.debug("%s neighborhoods", str(len(neighborhoods)))
-                if neighborhoods:
-                    sql_neighborhood = """
-                        insert into neighborhood(name, search_area_id)
-                        values(%s, %s)
-                        """
-                    for neighborhood in neighborhoods:
-                        cur.execute(sql_neighborhood, (neighborhood,
-                                                       search_area_id,))
-                        logging.info("Added neighborhood %s", neighborhood)
-                else:
-                    logging.info("No neighborhoods found for %s", city)
-                conn.commit()
-        except UnicodeEncodeError:
-            # if sys.version_info >= (3,):
-            #    logging.info(s.encode('utf8').decode(sys.stdout.encoding))
-            # else:
-            #    logging.info(s.encode('utf8'))
-            # unhandled at the moment
-            pass
-        except Exception:
-            logging.error("Error collecting city and neighborhood information")
-            raise
-        return True
+        cur.close()
+        conn.commit()
+        print("Search area {} added: search_area_id = {}"
+              .format(search_area, search_area_id))
+        print("Before searching, update the row to add a bounding box, using SQL.")
+        print("I use coordinates from http://www.mapdevelopers.com/geocode_bounding_box.php.")
+        print("The update statement to use is:")
+        print("\n\tUPDATE search_area")
+        print("\tSET bb_n_lat = ?, bb_s_lat = ?, bb_e_lng = ?, bb_n_lng = ?")
+        print("\tWHERE search_area_id = {}".format(search_area_id))
+        print("\nThis program does not provide a way to do this update automatically.")
+               
     except Exception:
-        logging.error("Error getting city info from website")
+        print("Error adding search area to database")
         raise
 
 
@@ -374,8 +345,8 @@ def parse_args():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-asa', '--addsearcharea',
                        metavar='search_area', action='store', default=False,
-                       help="""get and save the name and neighborhoods
-                       for search area (city)""")
+                       help="""add a search area to the database. A search area
+                       is typically a city, but may be a bigger region.""")
     group.add_argument('-asv', '--addsurvey',
                        metavar='search_area', type=str,
                        help="""add a survey entry to the database,
@@ -477,7 +448,7 @@ def main():
         elif args.fill is not None:
             fill_loop_by_room(ab_config, args.fill)
         elif args.addsearcharea:
-            ws_get_city_info(ab_config, args.addsearcharea, ab_config.FLAGS_ADD)
+            db_add_search_area(ab_config, args.addsearcharea, ab_config.FLAGS_ADD)
         elif args.addsurvey:
             db_add_survey(ab_config, args.addsurvey)
         elif args.dbping:
