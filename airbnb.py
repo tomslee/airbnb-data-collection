@@ -137,7 +137,8 @@ def db_ping(config):
     try:
         conn = config.connect()
         if conn is not None:
-            print("Connection test succeeded")
+            print("Connection test succeeded: {db_name}@{db_host}"
+                  .format(db_name=config.DB_NAME, db_host=config.DB_HOST))
         else:
             print("Connection test failed")
     except Exception:
