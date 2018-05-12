@@ -71,9 +71,10 @@ def ws_individual_request(config, url, attempt_id, params=None):
                 'http': http_proxy,
                 'https': http_proxy,
             }
-            logger.debug("Requesting page through proxy " + http_proxy)
+            logger.debug("Requesting page through proxy %s", http_proxy)
         else:
             proxies = None
+            logger.debug("Requesting page without using a proxy")
 
         # Now make the request
         # cookie to avoid auto-redirect

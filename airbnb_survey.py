@@ -663,26 +663,29 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # json_doc = json_doc["sections"]
                 # if json_doc: logger.debug("json: sections")
 
-                room_count = 0
-                for json_listings in json_listings_lists:
-                    for json_listing in json_listings:
-                        room_id = int(json_listing["listing"]["id"])
-                        if room_id is not None:
-                            room_count += 1
-                            listing = self.listing_from_search_page_json(json_listing, room_id)
-                            if listing is None:
-                                continue
-                            if listing.latitude is not None:
-                                median_lists["latitude"].append(listing.latitude)
-                            if listing.longitude is not None:
-                                median_lists["longitude"].append(listing.longitude)
-                            if listing.host_id is not None:
-                                listing.deleted = 0
-                                if flag == self.config.FLAGS_ADD:
-                                    if listing.save(self.config.FLAGS_INSERT_NO_REPLACE):
-                                        new_rooms += 1
-                                elif flag == self.config.FLAGS_PRINT:
-                                    print(listing.room_type, listing.room_id)
+                if json_listings_lists is not None:
+                    room_count = 0
+                    for json_listings in json_listings_lists:
+                        if json_listings is None:
+                            continue
+                        for json_listing in json_listings:
+                            room_id = int(json_listing["listing"]["id"])
+                            if room_id is not None:
+                                room_count += 1
+                                listing = self.listing_from_search_page_json(json_listing, room_id)
+                                if listing is None:
+                                    continue
+                                if listing.latitude is not None:
+                                    median_lists["latitude"].append(listing.latitude)
+                                if listing.longitude is not None:
+                                    median_lists["longitude"].append(listing.longitude)
+                                if listing.host_id is not None:
+                                    listing.deleted = 0
+                                    if flag == self.config.FLAGS_ADD:
+                                        if listing.save(self.config.FLAGS_INSERT_NO_REPLACE):
+                                            new_rooms += 1
+                                    elif flag == self.config.FLAGS_PRINT:
+                                        print(listing.room_type, listing.room_id)
 
                 # Log page-level results
                 logger.info("Page {page_number:02d} returned {room_count:02d} listings"
