@@ -32,6 +32,12 @@ class Timer:
         self.interval = self.end - self.start
 
 class ABSurvey():
+    """
+    Class to represent a generic survey, using one of several methods.
+    Specific surveys (eg bounding box, neighbourhood) are implemented in
+    subclasses. Right now (May 2018), however, only the bounding box survey
+    is working.
+    """
 
     def __init__(self, config, survey_id):
         self.config = config
@@ -60,6 +66,9 @@ class ABSurvey():
         logger.propagate = False
 
     def set_search_area(self):
+        """
+        Compute the search area ID and name.
+        """
         try:
             conn = self.config.connect()
             cur = conn.cursor()
@@ -103,7 +112,8 @@ class ABSurvey():
             listing = ABListing(self.config, room_id, self.survey_id)
             # listing
             json_listing = json["listing"] if "listing" in json else None
-            if json_listing is None: return None
+            if json_listing is None:
+                return None
             if "room_type" in json_listing:
                 listing.room_type = json_listing["room_type"]
             else:
@@ -200,12 +210,12 @@ class ABSurvey():
             return False
 
     def fini(self):
-        """ Wrap up a survey: correcting status and survey_date
+        """
+        Wrap up a survey: correcting status and survey_date
         """
         try:
-            logger.info("Finishing survey {survey_id}, for {search_area_name}".format(
-                survey_id=self.survey_id, search_area_name=self.search_area_name
-            ))
+            logger.info("Finishing survey %s, for %s",
+                        self.survey_id, self.search_area_name)
             sql_update = """
             update survey
             set survey_date = (
@@ -295,7 +305,7 @@ class ABSurveyByBoundingBox(ABSurvey):
     def __init__(self, config, survey_id):
         super().__init__(config, survey_id)
         self.search_node_counter = 0
-        self.get_logged_progress()
+        self.logged_progress = self.get_logged_progress()
         self.get_bounding_box()
 
     def get_logged_progress(self):
@@ -323,13 +333,13 @@ class ABSurveyByBoundingBox(ABSurvey):
                 logged_progress = {}
                 logged_progress["quadtree"] = eval(row[0])
                 logged_progress["median"] = eval(row[1])
-                logger.info("\tRetrieved logged progress: quadtree node %s",
-                            logged_progress["quadtree"])
-                logger.info("\tmedian node %s", logged_progress["median"])
-                self.logged_progress = logged_progress
+                logger.info("Resuming survey - retrieved logged progress")
+                logger.info("\tquadtree node=%s", logged_progress["quadtree"])
+                logger.info("\tmedian node=%s", logged_progress["median"])
+                return logged_progress
         except Exception:
             logger.exception("Exception in get_progress: setting logged progress to None")
-            self.logged_progress = None
+            return None
 
     def get_bounding_box(self):
         try:
@@ -355,7 +365,6 @@ class ABSurveyByBoundingBox(ABSurvey):
             if self.bounding_box[1] <= self.bounding_box[3]:
                 logger.error("Invalid bounding box: e_lng must be > w_lng")
                 return
-            logger.info("Bounding box: " + str(self.bounding_box))
         except Exception:
             logger.exception("Exception in set_bounding_box")
             self.bounding_box = None
@@ -377,12 +386,12 @@ class ABSurveyByBoundingBox(ABSurvey):
                 survey_id=self.survey_id, search_area_name=self.search_area_name
             ))
             ABSurvey.update_survey_entry(self, self.config.SEARCH_BY_BOUNDING_BOX)
-            logger.info("Searching by bounding box, max_zoom={max_zoom}"
-                    .format(max_zoom=self.config.SEARCH_MAX_RECTANGLE_ZOOM ))
+            logger.info("Searching by bounding box, max_zoom=%s",
+                        self.config.SEARCH_MAX_RECTANGLE_ZOOM)
             # Initialize search parameters
             # quadtree_node holds the quadtree: each rectangle is
             # divided into 00 | 01 | 10 | 11, and the next level down adds
-            # set starting point 
+            # set starting point
             quadtree_node = [] # list of [0,0] etc coordinates
             median_node = [] # median lat, long to define optimal quadrants
             # set starting point for survey being resumed
@@ -403,7 +412,7 @@ class ABSurveyByBoundingBox(ABSurvey):
         """
         Recursive function to search for listings inside a rectangle.
         The actual search calls are done in search_node, and
-        this method (recurse_quadtree) prints output and sets up new 
+        this method (recurse_quadtree) prints output and sets up new
         rectangles, if necessary, for another round of searching.
 
         To match Airbnb's use of SW and NE corners, quadrants are divided
@@ -417,8 +426,15 @@ class ABSurveyByBoundingBox(ABSurvey):
         """
         try:
             zoomable = True
-            if self.subtree_previously_completed(quadtree_node):
-                # Do not search a node here: go immediately to the next subtree
+            if self.is_subtree_previously_completed(quadtree_node):
+                logger.info("Resuming survey: subtree previously completed: %s", quadtree_node)
+                # This node is part of a tree that has already been searched
+                # completely in a previous attempt to run this survey.
+                # Go immediately to the next quadrant at the current level,
+                # or (if this is a [1, 1] node) go back up the tree one level.
+                # For example: if quadtree_node is [0,0] and the logged
+                # progress is [1,0] then the subtree for [0,0] is completed. If
+                # progress is [0,0][0,1] then the subtree is not completed.
                 # TODO: use the same technique as the loop, below
                 if quadtree_node[-1] == [0, 0]:
                     quadtree_node[-1] = [0, 1]
@@ -430,18 +446,28 @@ class ABSurveyByBoundingBox(ABSurvey):
                     del quadtree_node[-1]
                 return
 
-            # Search this node if it was not searched in a previous attempt
-            searchable_node = (self.logged_progress is None or
-                               len(quadtree_node) >= len(self.logged_progress["quadtree"]))
+            # The subtree for this node has not been searched completely, so we
+            # will continue to explore the tree. But does the current node need
+            # to be searched? Only if it is at least as far down the tree as
+            # the logged progress.
+            # TODO Currently the most recent quadrant is searched again: this
+            # is not a big problem.
+            searchable_node = (
+                self.logged_progress is None 
+                or len(quadtree_node) >= len(self.logged_progress["quadtree"]))
             if searchable_node:
+                # The logged_progress can be set to None, as the survey is now
+                # resumed. This should be done only once, but it is repeated.
+                # Still, it is cheap.
+                self.logged_progress = None
                 (zoomable, median_leaf) = self.search_node(quadtree_node, median_node, flag)
             else:
                 median_leaf = self.logged_progress["median"][-1]
-                logger.debug("Node previously searched: {quadtree}".format(quadtree=quadtree_node))
+                logger.info("Resuming survey: node previously searched: %s", quadtree_node)
 
             # Recurse through the tree
             if zoomable:
-               # and len(self.logged_progress["quadtree"]) >= len(quadtree_node)):
+                # and len(self.logged_progress["quadtree"]) >= len(quadtree_node)):
                 # append a node to the quadtree for a new level
                 quadtree_node.append([0,0])
                 median_node.append(median_leaf)
@@ -453,8 +479,10 @@ class ABSurveyByBoundingBox(ABSurvey):
                     self.recurse_quadtree(quadtree_node, median_node, flag)
                 # the search of the quadtree below this node is complete:
                 # remove the leaf element from the tree and return to go up a level
-                del quadtree_node[-1]
-                del median_node[-1]
+                if len(quadtree_node) > 0:
+                    del quadtree_node[-1]
+                if len(median_node) > 0:
+                    del median_node[-1]
             logger.debug("Returning from recurse_quadtree for %s", quadtree_node)
             if flag == self.config.FLAGS_PRINT:
                 # for FLAGS_PRINT, fetch one page and print it
@@ -549,8 +577,9 @@ class ABSurveyByBoundingBox(ABSurvey):
                     if response:
                         json_doc = json.loads(response.text)
                     else:
-                        # If else:no response, maybe it's a network problem rather than a lack of data, so
-                        # to be conserelse:vative go to the next page rather than the next rectangle
+                        # If no response, maybe it's a network problem rather
+                        # than a lack of data.To be conservative go to the next page
+                        # rather than the next rectangle
                         logger.warning(
                             "No response received from request despite multiple attempts: %s",
                             params)
@@ -558,7 +587,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                 else:
                     # Web page (returns HTML)
                     logger.debug("No API key found in config file: using web search at %s",
-                                 self.config.URL_API_SEARCH_ROOT) 
+                                 self.config.URL_API_SEARCH_ROOT)
                     params = {}
                     params["source"] = "filter"
                     params["_format"] = "for_explore_search_web"
@@ -593,8 +622,9 @@ class ABSurveyByBoundingBox(ABSurvey):
                         self.config, self.config.URL_API_SEARCH_ROOT, params)
                     # process the response
                     if not response:
-                        # If else:no response, maybe it's a network problem rather than a lack of data, so
-                        # to be conserelse:vative go to the next page rather than the next rectangle
+                        # If no response, maybe it's a network problem rather
+                        # than a lack of data. To be conservative go to the next page
+                        # rather than the next rectangle
                         logger.warning(
                             "No response received from request despite multiple attempts: %s",
                             params)
@@ -739,8 +769,8 @@ class ABSurveyByBoundingBox(ABSurvey):
         try:
             rectangle = self.bounding_box[0:4]
             for node, medians in zip(quadtree_node, median_node):
-                logger.debug("Quadtrees: {q}".format(q=node))
-                logger.debug("Medians: {m}".format(m=medians))
+                logger.debug("Quadtrees: %s", node)
+                logger.debug("Medians: %s", medians)
                 [n_lat, e_lng, s_lat, w_lng] = rectangle
                 blur = abs(n_lat - s_lat) * self.config.SEARCH_RECTANGLE_EDGE_BLUR
                 # find the mindpoints of the rectangle
@@ -751,46 +781,53 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # overlap quadrants to ensure coverage at high zoom levels
                 # Airbnb max zoom (18) is about 0.004 on a side.
                 rectangle = []
-                if node==[0,0]: # NE
+                if node == [0, 0]: # NE
                     rectangle = [round(n_lat + blur, 5),
-                            round(e_lng + blur, 5),
-                            round(mid_lat - blur, 5),
-                            round(mid_lng - blur, 5),]
-                elif node==[0,1]: # NW
+                                 round(e_lng + blur, 5),
+                                 round(mid_lat - blur, 5),
+                                 round(mid_lng - blur, 5),]
+                elif node == [0, 1]: # NW
                     rectangle = [round(n_lat + blur, 5),
-                            round(mid_lng + blur, 5),
-                            round(mid_lat - blur, 5),
-                            round(w_lng - blur, 5),]
-                elif node==[1,0]: # SE
+                                 round(mid_lng + blur, 5),
+                                 round(mid_lat - blur, 5),
+                                 round(w_lng - blur, 5),]
+                elif node == [1, 0]: # SE
                     rectangle = [round(mid_lat + blur, 5),
-                            round(e_lng + blur, 5),
-                            round(s_lat - blur, 5),
-                            round(mid_lng - blur, 5),]
-                elif node==[1,1]: # SW
+                                 round(e_lng + blur, 5),
+                                 round(s_lat - blur, 5),
+                                 round(mid_lng - blur, 5),]
+                elif node == [1, 1]: # SW
                     rectangle = [round(mid_lat + blur, 5),
-                            round(mid_lng + blur, 5),
-                            round(s_lat - blur, 5),
-                            round(w_lng - blur, 5),]
-            logger.info("Rectangle calculated: {rect}".format(rect=rectangle))
+                                 round(mid_lng + blur, 5),
+                                 round(s_lat - blur, 5),
+                                 round(w_lng - blur, 5),]
+            logger.info("Rectangle calculated: %s", rectangle)
             return rectangle
         except:
             logger.exception("Exception in get_rectangle_from_quadtree_node")
             return None
 
-    def subtree_previously_completed(self, quadtree_node):
-        # Return if the child subtree of this node was completed
-        # in a previous survey run
+    def is_subtree_previously_completed(self, quadtree_node):
+        """
+        Return True if the child subtree of this node was completed
+        in a previous attempt at this survey.
+        """
         subtree_previously_completed = False
-        if len(quadtree_node) > 1 and self.logged_progress is not None:
+        if self.logged_progress:
+            # Compare the current node to the logged progress node by
+            # converting into strings, then comparing the integer value.
+            common_length = min(len(quadtree_node),
+                                len(self.logged_progress["quadtree"]))
             s_this_quadrant = ''.join(str(quadtree_node[i][j])
                                       for j in range(0, 2)
-                                      for i in range(0, len(quadtree_node)))
-            s_logged_progress = ''.join(str(self.logged_progress["quadtree"][i][j])
-                                        for j in range(0, 2)
-                                        for i in range(0, len(quadtree_node)))
-            if int(s_this_quadrant) < int(s_logged_progress):
+                                      for i in range(0, common_length))
+            s_logged_progress = ''.join(
+                str(self.logged_progress["quadtree"][i][j])
+                for j in range(0, 2)
+                for i in range(0, common_length))
+            if (s_this_quadrant != ""
+                and int(s_this_quadrant) < int(s_logged_progress)):
                 subtree_previously_completed = True
-                logger.debug("Subtree previously completed: %s", quadtree_node)
         return subtree_previously_completed
 
 
@@ -811,9 +848,9 @@ class ABSurveyByBoundingBox(ABSurvey):
             conn = self.config.connect()
             cur = conn.cursor()
             cur.execute(sql, (self.survey_id,
-                repr(quadtree_node), repr(median_node),
-                repr(quadtree_node), repr(median_node),
-                self.survey_id))
+                              repr(quadtree_node), repr(median_node),
+                              repr(quadtree_node), repr(median_node),
+                              self.survey_id))
             cur.close()
             conn.commit()
             logger.debug("Progress logged")
@@ -914,9 +951,9 @@ class ABSurveyByNeighborhood(ABSurvey):
         try:
             logger.info("-" * 70)
             logger.info(room_type + ", " +
-                str(neighborhood) + ", " +
-                str(guests) + " guests, " +
-                "page " + str(section_offset))
+                        str(neighborhood) + ", " +
+                        str(guests) + " guests, " +
+                        "page " + str(section_offset))
             new_rooms = 0
             room_count = 0
             params = {}
@@ -925,9 +962,11 @@ class ABSurveyByNeighborhood(ABSurvey):
             params["location"] = self.search_area_name
             params["room_types[]"] = room_type
             params["neighborhoods[]"] = neighborhood
-            response = airbnb_ws.ws_request_with_repeats(self.config, self.config.URL_API_SEARCH_ROOT, params)
-            json = response.json()
-            for result in json["results_json"]["search_results"]:
+            response = airbnb_ws.ws_request_with_repeats(self.config,
+                                                         self.config.URL_API_SEARCH_ROOT,
+                                                         params)
+            json_response = response.json()
+            for result in json_response["results_json"]["search_results"]:
                 room_id = int(result["listing"]["id"])
                 if room_id is not None:
                     room_count += 1
@@ -1029,9 +1068,7 @@ class ABSurveyByZipcode(ABSurvey):
         zipcodes = self.get_zipcodes_from_search_area()
         for room_type in self.room_types:
             try:
-                i = 0
                 for zipcode in zipcodes:
-                    i += 1
                     self.__search_zipcode(str(zipcode), room_type, self.survey_id,
                                           flag, self.search_area_name)
             except Exception:
@@ -1116,8 +1153,8 @@ class ABSurveyByZipcode(ABSurvey):
             response = airbnb_ws.ws_request_with_repeats(self.config,
                                                          self.config.URL_API_SEARCH_ROOT,
                                                          params)
-            json = response.json()
-            for result in json["results_json"]["search_results"]:
+            json_response = response.json()
+            for result in json_response["results_json"]["search_results"]:
                 room_id = int(result["listing"]["id"])
                 if room_id is not None:
                     room_count += 1
