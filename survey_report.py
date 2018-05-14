@@ -44,7 +44,7 @@ def runit(survey_id, details):
     match = p_date.search(firstline)
     survey_start_date = match.group(0)
     zoom = 0
-    max_zoom = 0
+    max_zoom = 15
 
     for line in log_file_object:
         # Response time raw data for page requests
@@ -81,9 +81,9 @@ def runit(survey_id, details):
         elif "Survey " in line:
             match = p_survey.search(line)
             search_area = match.group(2)
-        elif "max_zoom" in line:
-            match = p_max_zoom.search(line)
-            max_zoom = int(match.group(1))
+        # elif "max_zoom" in line:
+            # match = p_max_zoom.search(line)
+            # max_zoom = int(match.group(1))
 
     #------------------------------------------------------------------------
     # Calculations
@@ -153,7 +153,9 @@ def runit(survey_id, details):
     print("" * 80)
     print("\tZoom level\tNew rooms")
     print("-" * 80)
-    for zoom_level in range(max_zoom):
+    while zoom_level_new_rooms[-1] == 0:
+        zoom_level_new_rooms = zoom_level_new_rooms[:-1]
+    for zoom_level in range(0,len(zoom_level_new_rooms)):
         # Items goes over zoom?
         print("\t{}\t\t{}".format(zoom_level, zoom_level_new_rooms[zoom_level]))
     print("")
@@ -164,7 +166,9 @@ def runit(survey_id, details):
     print("" * 80)
     print("\tZoom level\tPage requests")
     print("-" * 80)
-    for zoom_level in range(max_zoom):
+    while zoom_level_page_requests[-1] == 0:
+        zoom_level_page_requests = zoom_level_page_requests[:-1]
+    for zoom_level in range(0,len(zoom_level_page_requests)):
         print("\t{}\t\t{}".format(zoom_level, zoom_level_page_requests[zoom_level]))
     print("")
 
