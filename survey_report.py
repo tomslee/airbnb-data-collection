@@ -34,7 +34,7 @@ def runit(survey_id, details):
     # 2018-02-07 05:17:04,114 INFO    Results:  1 pages, 20 new rooms
     p_page = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}),([0-9]{3}) INFO    Page ([0-9]{2}) returned ([0-9]+) listings")
     p_rectangle = re.compile(r"Searching rectangle:\s+zoom factor = ([0-9]+), node\s*=\s*(.*)")
-    p_result = re.compile(r"Results:\s+([0-9]+) pages, ([0-9]+) new rooms")
+    p_result = re.compile(r"Results:\s+([0-9]+) pages, ([0-9]+) new")
     p_survey = re.compile(r"Survey\s+([0-9]+), for (.*)")
     p_max_zoom = re.compile("Searching by bounding box, max_zoom=([0-9]+)")
 
