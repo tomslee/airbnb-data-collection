@@ -441,6 +441,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                 # progress is [1,0] then the subtree for [0,0] is completed. If
                 # progress is [0,0][0,1] then the subtree is not completed.
                 # TODO: use the same technique as the loop, below
+                if not quadtree_node:
+                    return
                 if quadtree_node[-1] == [0, 0]:
                     quadtree_node[-1] = [0, 1]
                 elif quadtree_node[-1] == [0, 1]:
@@ -830,6 +832,8 @@ class ABSurveyByBoundingBox(ABSurvey):
         if self.logged_progress:
             # Compare the current node to the logged progress node by
             # converting into strings, then comparing the integer value.
+            logger.debug("room_type=%s, self.logged_progress['room_type']=%s",
+                             room_type, self.logged_progress["room_type"])
             if (self.room_types.index(room_type)
                 < self.room_types.index(self.logged_progress["room_type"])):
                 subtree_previously_completed = True
