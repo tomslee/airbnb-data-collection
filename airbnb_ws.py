@@ -112,7 +112,7 @@ def ws_individual_request(config, url, attempt_id, params=None):
                     logger.warning("Adding one second to request sleep time.  Now %s",
                                    config.REQUEST_SLEEP)
             else:
-                logger.warning(("HTTP status %s from web site: IP address blocked."
+                logger.warning(("HTTP status %s from web site: IP address blocked. "
                                 "Waiting %s minutes."),
                                response.status_code, (config.RE_INIT_SLEEP_TIME / 60.0))
                 time.sleep(config.RE_INIT_SLEEP_TIME)
