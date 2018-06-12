@@ -8,6 +8,12 @@ Sometimes the Airbnb site refuses repeated requests. I run the script using a nu
 
 ## Status and recent changes
 
+### June 2018 (3.3)
+
+*This script currently misses about 20% to 30% of listings, especially in high-density areas.*
+
+*I do not know why some listings are missed, and am not certain that I will find a way to solve the problem.*
+
 ### April 2018 (3.3)
 
 After further changes to the Airbnb web site here is a new version, posted on April 29 2018. 
