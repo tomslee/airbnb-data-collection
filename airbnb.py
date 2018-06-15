@@ -183,6 +183,54 @@ def db_add_survey(config, search_area):
         raise
 
 
+def db_delete_survey(config, survey_id):
+    """
+    Delete the listings and progress for a survey from the database.
+    Set the survey to "incomplete" in the survey table.
+    """
+    question = "Are you sure you want to delete listings for survey {}? [y/N] ".format(survey_id)
+    sys.stdout.write(question)
+    choice = input().lower()
+    if choice != "y":
+        print("Cancelling the request.")
+        return
+    try:
+        conn = config.connect()
+        cur = conn.cursor()
+        # Delete the listings from the room table
+        sql = """
+        delete from room where survey_id = %s
+        """
+        cur.execute(sql, (survey_id,))
+        print("{} listings deleted from 'room' table".format(cur.rowcount))
+
+        # Delete the entry from the progress log table
+        sql = """
+        delete from survey_progress_log_bb where survey_id = %s
+        """
+        cur.execute(sql, (survey_id,))
+        # No need to report: it's just a log table
+
+        # Update the survey entry
+        sql = """
+        update survey
+        set status = 0, survey_date = NULL
+        where survey_id = %s
+        """
+        cur.execute(sql, (survey_id,))
+        if cur.rowcount == 1:
+            print("Survey entry updated")
+        else:
+            print("Warning: {} survey entries updated".format(cur.rowcount))
+        conn.commit()
+        cur.close()
+    except Exception:
+        logging.error("Failed to delete survey for %s", survey_id)
+        raise
+
+    pass
+
+
 def db_get_room_to_fill(config, survey_id):
     """
     For "fill" runs (loops over room pages), choose a random room that has
@@ -347,7 +395,7 @@ def parse_args():
                        metavar='search_area', action='store', default=False,
                        help="""add a search area to the database. A search area
                        is typically a city, but may be a bigger region.""")
-    group.add_argument('-asv', '--addsurvey',
+    group.add_argument('-asv', '--add_survey',
                        metavar='search_area', type=str,
                        help="""add a survey entry to the database,
                        for search_area""")
@@ -360,6 +408,10 @@ def parse_args():
     group.add_argument('-dr', '--displayroom',
                        metavar='room_id', type=int,
                        help='display web page for room_id in browser')
+    group.add_argument('-dsv', '--delete_survey',
+                       metavar='survey_id', type=int,
+                       help="""delete a survey from the database, with its
+                       listings""")
     group.add_argument('-f', '--fill', nargs='?',
                        metavar='survey_id', type=int, const=0,
                        help='fill details for rooms collected with -s')
@@ -449,10 +501,12 @@ def main():
             fill_loop_by_room(ab_config, args.fill)
         elif args.addsearcharea:
             db_add_search_area(ab_config, args.addsearcharea, ab_config.FLAGS_ADD)
-        elif args.addsurvey:
-            db_add_survey(ab_config, args.addsurvey)
+        elif args.add_survey:
+            db_add_survey(ab_config, args.add_survey)
         elif args.dbping:
             db_ping(ab_config)
+        elif args.delete_survey:
+            db_delete_survey(ab_config, args.delete_survey)
         elif args.displayhost:
             display_host(ab_config, args.displayhost)
         elif args.displayroom:
