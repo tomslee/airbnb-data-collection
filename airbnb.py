@@ -33,6 +33,8 @@ import airbnb_ws
 # ============================================================================
 
 # Script version
+# 3.4 June 2018: Minor tweaks, but now know that Airbnb searches do not return
+#                listings for which there are no available dates.
 # 3.3 April 2018: Changed to use /api/ for -sb if key provided in config file
 # 3.2 April 2018: fix for modified Airbnb site. Avoided loops over room types
 #                 in -sb
@@ -45,7 +47,7 @@ import airbnb_ws
 # 2.6 adds a bounding box search
 # 2.5 is a bit of a rewrite: classes for ABListing and ABSurvey, and requests lib
 # 2.3 released Jan 12, 2015, to handle a web site update
-SCRIPT_VERSION_NUMBER = 3.3
+SCRIPT_VERSION_NUMBER = 3.4
 # logging = logging.getLogger()
 
 def list_search_area_info(config, search_area):
@@ -148,6 +150,7 @@ def db_ping(config):
 def db_add_survey(config, search_area):
     """
     Add a survey entry to the database, so the survey can be run.
+    Also returns the survey_id, in case it is to be used..
     """
     try:
         conn = config.connect()
@@ -178,6 +181,7 @@ def db_add_survey(config, search_area):
               + "\n\tsurvey_date=" + str(survey_date)
               + "\n\tsurvey_description=" + survey_description
               + "\n\tsearch_area_id=" + str(search_area_id))
+        return survey_id
     except Exception:
         logging.error("Failed to add survey for %s", search_area)
         raise
@@ -463,6 +467,11 @@ def parse_args():
                        help="""search for rooms using survey survey_id,
                        by bounding box
                        """)
+    group.add_argument('-asb', '--add_and_search_by_bounding_box',
+                       metavar='search_area', type=str,
+                       help="""add a survey for search_area and search ,
+                       by bounding box
+                       """)
     group.add_argument('-sz', '--search_by_zipcode',
                        metavar='survey_id', type=int,
                        help="""search for rooms using survey_id,
@@ -497,6 +506,11 @@ def main():
         elif args.search_by_bounding_box:
             survey = ABSurveyByBoundingBox(ab_config, args.search_by_bounding_box)
             survey.search(ab_config.FLAGS_ADD)
+        elif args.add_and_search_by_bounding_box:
+            survey_id = db_add_survey(ab_config,
+                                      args.add_and_search_by_bounding_box)
+            survey = ABSurveyByBoundingBox(ab_config, survey_id)
+            survey.search(ab_config.FLAGS_ADD)
         elif args.fill is not None:
             fill_loop_by_room(ab_config, args.fill)
         elif args.addsearcharea:
@@ -522,7 +536,7 @@ def main():
             ws_get_city_info(ab_config, args.printsearcharea, ab_config.FLAGS_PRINT)
         elif args.printroom:
             listing = ABListing(ab_config, args.printroom, None)
-            listing.ws_get_room_info(ab_config.FLAGS_PRINT)
+            listing.get_room_info_from_web_site(ab_config.FLAGS_PRINT)
         elif args.printsearch:
             survey = ABSurveyByNeighborhood(ab_config, args.printsearch)
             survey.search(ab_config.FLAGS_PRINT)

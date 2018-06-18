@@ -55,12 +55,14 @@ class ABListing():
         # rate_type (str) - "nightly" or other?
         self.rate_type = None
         """ """
+        logger.setLevel(config.log_level)
+
 
     def status_check(self):
-        status = True  # OK
         # if sufficient of the values are None or don't exist, the room 
         # entry was not properly parsed and we may as well throw the whole
         # thing away.
+        status = True  # OK
         unassigned_values = {key: value
                              for key, value in vars(self).items()
                              if not key.startswith('__') and
@@ -175,7 +177,9 @@ class ABListing():
             raise
 
     def print_from_web_site(self):
-        """ What is says """
+        """ What it says, although now nothing printed as the parsing code is
+        broken """
+        return
         try:
             print_string = "Room info:"
             print_string += "\n\troom_id:\t" + str(self.room_id)
@@ -231,7 +235,7 @@ class ABListing():
         except Exception:
             raise
 
-    def ws_get_room_info(self, flag):
+    def get_room_info_from_web_site(self, flag):
         """ Get the room properties from the web site """
         try:
             # initialization
@@ -244,8 +248,10 @@ class ABListing():
                 page = response.text
                 tree = html.fromstring(page)
                 self.__get_room_info_from_tree(tree, flag)
+                logger.info("Room %s: found", self.room_id)
                 return True
             else:
+                logger.info("Room %s: not found", self.room_id)
                 return False
         except (KeyboardInterrupt, SystemExit):
             raise
@@ -727,9 +733,8 @@ class ABListing():
             # coworker_hosted, extra_host_languages, name,
             #    property_type, currency, rate_type
 
-            self.status_check()
-
             if flag == self.config.FLAGS_ADD:
+                self.status_check()
                 self.save(self.config.FLAGS_INSERT_REPLACE)
             elif flag == self.config.FLAGS_PRINT:
                 self.print_from_web_site()

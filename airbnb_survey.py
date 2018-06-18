@@ -543,7 +543,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                     logger.debug("API key found: using API search at %s",
                                  self.config.URL_API_SEARCH_ROOT)
                     params = {}
-                    params["version"] = "1.3.5"
+                    # params["version"] = "1.3.5"
                     params["_format"] = "for_explore_search_web"
                     params["experiences_per_grid"] = str(20)
                     params["items_per_grid"] = str(18)
@@ -562,7 +562,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                     params["is_standard_search"] = str(True)
                     params["refinement_paths[]"] = "/homes"
                     params["selected_tab_id"] = "home_tab"
-                    # params["allow_override[]"] = ""
+                    params["allow_override[]"] = ""
                     if self.config.SEARCH_DO_LOOP_OVER_ROOM_TYPES:
                         params["room_types[]"] = room_type
                     params["ne_lat"] = str(rectangle[0])
