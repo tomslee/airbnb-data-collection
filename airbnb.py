@@ -325,7 +325,7 @@ def db_add_search_area(config, search_area, flag):
         print("I use coordinates from http://www.mapdevelopers.com/geocode_bounding_box.php.")
         print("The update statement to use is:")
         print("\n\tUPDATE search_area")
-        print("\tSET bb_n_lat = ?, bb_s_lat = ?, bb_e_lng = ?, bb_n_lng = ?")
+        print("\tSET bb_n_lat = ?, bb_s_lat = ?, bb_e_lng = ?, bb_w_lng = ?")
         print("\tWHERE search_area_id = {}".format(search_area_id))
         print("\nThis program does not provide a way to do this update automatically.")
                

@@ -834,14 +834,15 @@ class ABSurveyByBoundingBox(ABSurvey):
             # converting into strings, then comparing the integer value.
             logger.debug("room_type=%s, self.logged_progress['room_type']=%s",
                              room_type, self.logged_progress["room_type"])
-            if (self.room_types.index(room_type)
-                < self.room_types.index(self.logged_progress["room_type"])):
-                subtree_previously_completed = True
-                return subtree_previously_completed
-            if (self.room_types.index(room_type)
-                > self.room_types.index(self.logged_progress["room_type"])):
-                subtree_previously_completed = False
-                return subtree_previously_completed
+            if self.config.SEARCH_DO_LOOP_OVER_ROOM_TYPES == 1:
+                if (self.room_types.index(room_type)
+                    < self.room_types.index(self.logged_progress["room_type"])):
+                    subtree_previously_completed = True
+                    return subtree_previously_completed
+                if (self.room_types.index(room_type)
+                    > self.room_types.index(self.logged_progress["room_type"])):
+                    subtree_previously_completed = False
+                    return subtree_previously_completed
             common_length = min(len(quadtree_node),
                                 len(self.logged_progress["quadtree"]))
             s_this_quadrant = ''.join(str(quadtree_node[i][j])
