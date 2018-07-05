@@ -8,6 +8,16 @@ import argparse
 import json
 from airbnb_config import ABConfig
 
+class Location():
+
+    def __init__(self):
+        self.neighborhood = None
+        self.sublocality = None
+        self.locality = None
+        self.level2 = None
+        self.level1 = None
+        self.country = None
+
 def main():
     """ Reverse geocode a lat, lng argumet """
     parser = argparse.ArgumentParser(
@@ -30,48 +40,54 @@ def main():
     # lng = -72.693
     results = gmaps.reverse_geocode((lat, lng))
 
-    # Parsing the result is described at 
+    # Parsing the result is described at
     # https://developers.google.com/maps/documentation/geocoding/web-service-best-practices#ParsingJSON
 
     json_file = open("geocode.json", mode="w", encoding="utf-8")
     json_file.write(json.dumps(results, indent=4, sort_keys=True))
     json_file.close()
     #  In practice, you may wish to only return the first result (results[0])
-    neighborhood = None
-    sublocality = None
-    locality = None
-    lev2 = None
-    region = None
-    country = None
+
+    location = Location()
     for result in results:
-        if (neighborhood and sublocality and locality and lev2 and region and
-            country):
+        if (location.neighborhood and
+                location.sublocality and
+                location.locality and
+                location.level2 and
+                location.level1 and
+                location.country):
             break
         address_components = result['address_components']
         for address_component in address_components:
-            if (neighborhood is None 
-                and "neighborhood" in address_component["types"]):
-                neighborhood = address_component["long_name"]
-            elif (sublocality is None
-                and "sublocality" in address_component["types"]):
-                sublocality = address_component["long_name"]
-            elif (locality is None
+            if (location.neighborhood is None
+                    and "neighborhood" in address_component["types"]):
+                location.neighborhood = address_component["long_name"]
+            elif (location.sublocality is None
+                  and "sublocality" in address_component["types"]):
+                location.sublocality = address_component["long_name"]
+            elif (location.locality is None
                   and "locality" in address_component["types"]):
-                locality = address_component["long_name"]
-            elif (lev2 is None
+                location.locality = address_component["long_name"]
+            elif (location.level2 is None
                   and "administrative_area_level_2" in
                   address_component["types"]):
-                lev2 = address_component["long_name"]
-            elif (region is None
+                location.level2 = address_component["long_name"]
+            elif (location.level1 is None
                   and "administrative_area_level_1" in
                   address_component["types"]):
-                region = address_component["long_name"]
-            elif (country is None
-                    and "country" in address_component["types"]):
-                country = address_component["long_name"]
-    
-    print("nbr={}, sub={}, loc={}, lev2={}, reg={}, country={}".format(
-        neighborhood, sublocality, locality, lev2, region, country))
+                location.level1 = address_component["long_name"]
+            elif (location.country is None
+                  and "country" in address_component["types"]):
+                location.country = address_component["long_name"]
+    print("neighbourhood={}, sublocality={}, locality={}, level2={}, level1={}, country={}"
+          .format(
+              location.neighborhood,
+              location.sublocality,
+              location.locality,
+              location.level2,
+              location.level1,
+              location.country)
+         )
 
 if __name__ == "__main__":
     main()

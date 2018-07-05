@@ -1,5 +1,25 @@
 # Airbnb project notes
 
+## Adding location information from Google maps
+
+Information returned from the API is like this example:
+
+> python reverse_geocode.py --lat=40.83 --lng=-73.90
+neighbourhood=Morrisania,
+sublocality=Bronx,
+locality=New York,
+level2=Bronx County,
+level1=New York,
+country=United States
+
+The fields include "administrative_area_level_1" and
+"administrative_area_level_2". Others are named as shown.
+
+>   ALTER TABLE room ADD COLUMN lat_round NUMERIC(9,4), ADD COLUMN lng_round
+NUMERIC(9,4)
+
+>    CREATE TABLE LOCATION
+
 ## PostGIS queries
 
 The room.location column is in SRID 4326.

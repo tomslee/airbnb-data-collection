@@ -33,6 +33,8 @@ import airbnb_ws
 # ============================================================================
 
 # Script version
+# 3.5 July 2018: Added column to room table for rounded-off latitude and
+# longitude, and additional location table for Google reverse geocode addresses
 # 3.4 June 2018: Minor tweaks, but now know that Airbnb searches do not return
 #                listings for which there are no available dates.
 # 3.3 April 2018: Changed to use /api/ for -sb if key provided in config file
@@ -47,7 +49,7 @@ import airbnb_ws
 # 2.6 adds a bounding box search
 # 2.5 is a bit of a rewrite: classes for ABListing and ABSurvey, and requests lib
 # 2.3 released Jan 12, 2015, to handle a web site update
-SCRIPT_VERSION_NUMBER = 3.4
+SCRIPT_VERSION_NUMBER = 3.5
 # logging = logging.getLogger()
 
 def list_search_area_info(config, search_area):
