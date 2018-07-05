@@ -128,10 +128,14 @@ def ws_individual_request(config, url, attempt_id, params=None):
                        attempt_id, http_proxy)
         return None
     except requests.exceptions.HTTPError:
-        logger.error("Network request exception %s: invalid HTTP response", attempt_id)
+        logger.error(
+            "Network request exception %s (invalid HTTP response), for proxy %s",
+            attempt_id, http_proxy)
         return None
     except requests.exceptions.Timeout:
-        logger.warning("Network request exception %s: timeout", attempt_id)
+        logger.warning(
+            "Network request exception %s (timeout), for proxy %s",
+            attempt_id, http_proxy)
         return None
     except requests.exceptions.TooManyRedirects:
         logger.error("Network request exception %s: too many redirects", attempt_id)
