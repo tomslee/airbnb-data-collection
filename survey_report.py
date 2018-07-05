@@ -44,7 +44,7 @@ def runit(survey_id, details):
     match = p_date.search(firstline)
     survey_start_date = match.group(0)
     zoom = 0
-    max_zoom = 15
+    max_zoom = 20
 
     for line in log_file_object:
         # Response time raw data for page requests

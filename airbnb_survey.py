@@ -108,6 +108,9 @@ class ABSurvey():
             return False
 
     def listing_from_search_page_json(self, json, room_id):
+        """
+        Some fields occasionally extend beyond the varchar(255) limit.
+        """
         try:
             listing = ABListing(self.config, room_id, self.survey_id)
             # listing
@@ -155,20 +158,41 @@ class ABSurvey():
             else:
                 listing.longitude = None
             # The coworker_hosted item is missing or elsewhere
-            listing.coworker_hosted = json_listing["coworker_hosted"] \
-                    if "coworker_hosted" in json_listing else None
+            if "coworker_hosted" in json_listing:
+                listing.coworker_hosted = json_listing["coworker_hosted"]
+            else:
+                listing.coworker_hosted = None
             # The extra_host_language item is missing or elsewhere
-            listing.extra_host_languages = json_listing["extra_host_languages"] \
-                if "extra_host_languages" in json_listing else None
-            listing.name = json_listing["name"] \
-                    if "name" in json_listing else None
-            listing.property_type = json_listing["property_type"] \
-                    if "property_type" in json_listing else None
+            if "extra_host_languages" in json_listing:
+                ehl = json_listing["extra_host_languages"]
+                if len(ehl) > 254:
+                    listing.extra_host_languages = ehl[:254]
+                else:
+                    listing.extra_host_languages = ehl
+            else:
+                listing.extra_host_languages = None
+            if "name" in json_listing:
+                lname = json_listing["name"]
+                if len(lname) > 254:
+                    listing.name = lname[:254]
+                else:
+                    listing.name = lname
+            else:
+                listing.name = None
+            if "property_type" in json_listing:
+                pt = json_listing["property_type"]
+                if len(pt) > 254:
+                    listing.property_type = pt[:254]
+                else:
+                    listing.property_type = pt
+            else:
+                listing.property_type = None
             # pricing
             json_pricing = json["pricing_quote"]
             listing.price = json_pricing["rate"]["amount"] if "rate" in json_pricing else None
             listing.currency = json_pricing["rate"]["currency"] if "rate" in json_pricing else None
             listing.rate_type = json_pricing["rate_type"] if "rate_type" in json_pricing else None
+
             return listing
         except:
             logger.exception("Error in survey.listing_from_search_page_json: returning None")
