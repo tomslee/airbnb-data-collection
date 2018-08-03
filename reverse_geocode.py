@@ -7,10 +7,22 @@ import googlemaps
 import argparse
 import json
 from airbnb_config import ABConfig
+import sys
+import logging
+
+format_string = "%(asctime)-15s %(levelname)-8s%(message)s"
+logging.basicConfig(level=logging.INFO, format=format_string)
+logger = logging.getLogger()
+
+# Suppress informational logging from requests module
+logging.getLogger("requests").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 class Location():
 
-    def __init__(self):
+    def __init__(self, lat_round, lng_round):
+        self.lat_round = lat_round
+        self.lng_round = lng_round
         self.neighborhood = None
         self.sublocality = None
         self.locality = None
@@ -18,26 +30,129 @@ class Location():
         self.level1 = None
         self.country = None
 
-def main():
-    """ Reverse geocode a lat, lng argumet """
-    parser = argparse.ArgumentParser(
-        description='reverse geocode')
-        # usage='%(prog)s [options]')
-    parser.add_argument("--lat",
-                        metavar="lat", type=float,
-                        help="""lat""")
-    parser.add_argument("--lng",
-                        metavar="lng", type=float,
-                        help="""lng""")
-    args = parser.parse_args()
-    lat = args.lat
-    lng = args.lng
-    # return address information for lat lng
-    config = ABConfig()
+    @classmethod
+    def from_db(cls, lat_round, lng_round):
+        return cls(lat_round, lng_round)
+
+class Boundary():
+    """
+    Get max and min lat and long for a search area
+    """
+
+    def __init__(self, bounding_box):
+        (self.bb_s_lat,
+         self.bb_n_lat,
+         self.bb_w_lng,
+         self.bb_e_lng) = bounding_box
+
+    @classmethod
+    def from_db(cls, config, search_area):
+        try:
+            cls.search_area = search_area
+            conn = config.connect()
+            cur = conn.cursor()
+            sql = """
+            SELECT bb_s_lat, bb_n_lat, bb_w_lng, bb_e_lng
+            FROM search_area
+            WHERE name = %s
+            """
+            cur.execute(sql, (search_area,))
+            # (self.bb_s_lat,
+             # self.bb_n_lat,
+             # self.bb_w_lng,
+             # self.bb_e_lng) = cur.fetchone()
+            bounding_box = cur.fetchone()
+            cur.close()
+            return cls(bounding_box)
+        except:
+            logger.exception("Exception in Boundary_from_db: exiting")
+            sys.exit()
+
+    @classmethod
+    def from_args(cls, config, args):
+        try:
+            bounding_box = (args.bb_s_lat, args.bb_n_lat,
+                            args.bb_w_lng, args.bb_e_lng)
+            return cls(bounding_box)
+        except:
+            logger.exception("Exception in Boundary_from_args: exiting")
+            sys.exit()
+
+def select_lat_lng(config, boundary):
+    """
+    Return a pair of lat_round and lng_round values from the Location table
+    for which the country has not yet been set.
+    """
+    try:
+        conn = config.connect()
+        cur = conn.cursor()
+        sql = """
+        SELECT lat_round, lng_round
+        FROM location
+        WHERE country IS NULL
+        AND lat_round BETWEEN %s AND %s
+        AND lng_round BETWEEN %s AND %s
+        LIMIT 1
+        """
+        args = (boundary.bb_s_lat,
+                boundary.bb_n_lat,
+                boundary.bb_w_lng,
+                boundary.bb_e_lng)
+        cur.execute(sql, args)
+        (lat_round, lng_round) = cur.fetchone()
+        cur.close()
+        location = Location(lat_round, lng_round)
+        return location
+    except Exception: 
+        logger.exception("Exception in select_lat_lng: exiting")
+        sys.exit()
+
+
+def update_location(config, location):
+    """
+    Insert or update a location with the required address information
+    """
+    try:
+        conn = config.connect()
+        cur = conn.cursor()
+        sql = """
+        UPDATE location
+        SET neighborhood = %s,
+        sublocality = %s,
+        locality = %s,
+        level2 = %s,
+        level1 = %s,
+        country = %s
+        WHERE lat_round = %s AND lng_round = %s
+        """
+        update_args = ( location.neighborhood,
+                location.sublocality,
+                location.locality,
+                location.level2,
+                location.level1,
+                location.country,
+                location.lat_round,
+                location.lng_round,
+               )
+        cur.execute(sql, update_args)
+        cur.close()
+        conn.commit()
+        return True
+    except:
+        logger.exception("Exception in update_location")
+        return False
+
+
+def reverse_geocode(config, location):
+    """ 
+    Return address information from the Google API as a Location object for a given lat lng
+    """
     gmaps = googlemaps.Client(key=config.GOOGLE_API_KEY)
     # Look up an address with reverse geocoding
     # lat = 41.782
     # lng = -72.693
+    lat = location.lat_round
+    lng = location.lng_round
     results = gmaps.reverse_geocode((lat, lng))
 
     # Parsing the result is described at
@@ -48,7 +163,6 @@ def main():
     json_file.close()
     #  In practice, you may wish to only return the first result (results[0])
 
-    location = Location()
     for result in results:
         if (location.neighborhood and
                 location.sublocality and
@@ -79,15 +193,71 @@ def main():
             elif (location.country is None
                   and "country" in address_component["types"]):
                 location.country = address_component["long_name"]
-    print("neighbourhood={}, sublocality={}, locality={}, level2={}, level1={}, country={}"
-          .format(
-              location.neighborhood,
-              location.sublocality,
-              location.locality,
-              location.level2,
-              location.level1,
-              location.country)
-         )
+    return location
+
+
+def main():
+    """ Controlling routine that calls the others """
+    config = ABConfig()
+    parser = argparse.ArgumentParser(
+        description='reverse geocode')
+        # usage='%(prog)s [options]')
+    # These arguments should be more carefully constructed. Right now there is
+    # no defining what is required, and what is optional, and what contradicts
+    # what.
+    parser.add_argument("--sa",
+                        metavar="search_area", type=str,
+                        help="""search_area""")
+    parser.add_argument("--lat",
+                        metavar="lat", type=float,
+                        help="""lat""")
+    parser.add_argument("--lng",
+                        metavar="lng", type=float,
+                        help="""lng""")
+    parser.add_argument("--bb_n_lat",
+                        metavar="bb_n_lat", type=float,
+                        help="""bb_n_lat""")
+    parser.add_argument("--bb_s_lat",
+                        metavar="bb_s_lat", type=float,
+                        help="""bb_s_lat""")
+    parser.add_argument("--bb_e_lng",
+                        metavar="bb_e_lng", type=float,
+                        help="""bb_e_lng""")
+    parser.add_argument("--bb_w_lng",
+                        metavar="bb_w_lng", type=float,
+                        help="""bb_w_lng""")
+    parser.add_argument("--count",
+                        metavar="count", type=int,
+                        help="""number_of_lookups""")
+    args = parser.parse_args()
+    search_area = args.sa
+    count = args.count
+    if search_area:
+        boundary = Boundary.from_db(config, search_area)
+    if args.bb_n_lat:
+        boundary = Boundary.from_args(config, args)
+    for lookup in range(count):
+        location = select_lat_lng(config, boundary)
+        location = reverse_geocode(config, location)
+        logger.debug(
+            "nbhd={}, subloc={}, loc={}, l2={}, l1={}, country={}."
+            .format(
+                location.neighborhood,
+                location.sublocality,
+                location.locality,
+                location.level2,
+                location.level1,
+                location.country)
+            )
+        success = update_location(config, location)
+        if success:
+            logger.info("Update succeeded: %s, %s: %s of %s",
+                        location.lat_round, location.lng_round,
+                        lookup, count)
+        else:
+            logger.warn("Update failed: %s, %s: %s of %s",
+                        location.lat_round, location.lng_round,
+                        lookup, count)
 
 if __name__ == "__main__":
     main()
