@@ -34,7 +34,9 @@ class Location():
     def from_db(cls, lat_round, lng_round):
         return cls(lat_round, lng_round)
 
-class Boundary():
+
+
+class BoundingBox():
     """
     Get max and min lat and long for a search area
     """
@@ -65,7 +67,22 @@ class Boundary():
             cur.close()
             return cls(bounding_box)
         except:
-            logger.exception("Exception in Boundary_from_db: exiting")
+            logger.exception("Exception in BoundingBox_from_db: exiting")
+            sys.exit()
+
+    @classmethod
+    def from_google(cls, config, search_area):
+        try:
+            gmaps = googlemaps.Client(key=config.GOOGLE_API_KEY)
+            results = gmaps.geocode((search_area))
+            bounds = results[0]["geometry"]["bounds"]
+            bounding_box = (bounds["southwest"]["lat"],
+                            bounds["northeast"]["lat"],
+                            bounds["southwest"]["lng"],
+                            bounds["northeast"]["lng"],)
+            return cls(bounding_box)
+        except:
+            logger.exception("Exception in BoundingBox_from_google: exiting")
             sys.exit()
 
     @classmethod
@@ -75,10 +92,10 @@ class Boundary():
                             args.bb_w_lng, args.bb_e_lng)
             return cls(bounding_box)
         except:
-            logger.exception("Exception in Boundary_from_args: exiting")
+            logger.exception("Exception in BoundingBox_from_args: exiting")
             sys.exit()
 
-def select_lat_lng(config, boundary):
+def select_lat_lng(config, bounding_box):
     """
     Return a pair of lat_round and lng_round values from the Location table
     for which the country has not yet been set.
@@ -94,10 +111,10 @@ def select_lat_lng(config, boundary):
         AND lng_round BETWEEN %s AND %s
         LIMIT 1
         """
-        args = (boundary.bb_s_lat,
-                boundary.bb_n_lat,
-                boundary.bb_w_lng,
-                boundary.bb_e_lng)
+        args = (bounding_box.bb_s_lat,
+                bounding_box.bb_n_lat,
+                bounding_box.bb_w_lng,
+                bounding_box.bb_e_lng)
         cur.execute(sql, args)
         (lat_round, lng_round) = cur.fetchone()
         cur.close()
@@ -233,11 +250,19 @@ def main():
     search_area = args.sa
     count = args.count
     if search_area:
-        boundary = Boundary.from_db(config, search_area)
+        # bb = BoundingBox.from_db(config, search_area)
+        # print(bb.bb_s_lat, bb.bb_n_lat, bb.bb_w_lng, bb.bb_e_lng)
+        bounding_box = BoundingBox.from_google(config, search_area)
+        logger.info("Bounding box for %s = (%s, %s, %s, %s)",
+                    search_area,
+                    bounding_box.bb_s_lat, bounding_box.bb_n_lat,
+                    bounding_box.bb_w_lng, bounding_box.bb_e_lng)
     if args.bb_n_lat:
-        boundary = Boundary.from_args(config, args)
+        bounding_box = BoundingBox.from_args(config, args)
+    if not count:
+        sys.exit(0)
     for lookup in range(count):
-        location = select_lat_lng(config, boundary)
+        location = select_lat_lng(config, bounding_box)
         location = reverse_geocode(config, location)
         logger.debug(
             "nbhd={}, subloc={}, loc={}, l2={}, l1={}, country={}."
