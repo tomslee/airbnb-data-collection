@@ -1,0 +1,21 @@
+version: '2'
+
+services:
+
+  airbnbcollector:
+    image: airbnbcollector:latest
+    container_name: airbnbcollector
+    depends_on:
+      - postgresql
+    command: tail -f /dev/null
+
+  postgresql:
+    image: mdillon/postgis:10
+    container_name: airbnbcollector-db
+    restart: always
+    volumes:  
+      - ../postgresql/:/sql/
+      - ./scripts:/docker-entrypoint-initdb.d/  
+    environment:
+      POSTGRES_PASSWORD: airbnb
+      POSTGRES_USER: airbnb

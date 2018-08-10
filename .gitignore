@@ -43,4 +43,5 @@ googlemaps.py
 /postgresql/*.bat
 /postgresql/test.sql
 /postgresql/shapefiles/*
+!docker/scripts/*.sh
 
