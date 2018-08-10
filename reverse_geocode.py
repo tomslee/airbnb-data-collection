@@ -116,7 +116,11 @@ def select_lat_lng(config, bounding_box):
                 bounding_box.bb_w_lng,
                 bounding_box.bb_e_lng)
         cur.execute(sql, args)
-        (lat_round, lng_round) = cur.fetchone()
+        try:
+            (lat_round, lng_round) = cur.fetchone()
+        except:
+            # No more results
+            return None
         cur.close()
         location = Location(lat_round, lng_round)
         return location
@@ -248,7 +252,10 @@ def main():
                         help="""number_of_lookups""")
     args = parser.parse_args()
     search_area = args.sa
-    count = args.count
+    if args.count:
+        count = args.count
+    else:
+        count = 1000
     if search_area:
         # bb = BoundingBox.from_db(config, search_area)
         # print(bb.bb_s_lat, bb.bb_n_lat, bb.bb_w_lng, bb.bb_e_lng)
@@ -261,8 +268,11 @@ def main():
         bounding_box = BoundingBox.from_args(config, args)
     if not count:
         sys.exit(0)
-    for lookup in range(count):
+    for lookup in range(1, count):
         location = select_lat_lng(config, bounding_box)
+        if location is None:
+            logger.info("No more locations")
+            sys.exit(0)
         location = reverse_geocode(config, location)
         logger.debug(
             "nbhd={}, subloc={}, loc={}, l2={}, l1={}, country={}."
