@@ -43,7 +43,8 @@ The "-sb" search that is all I do now is more efficient now. Set search_max_gues
 
 ## Using the script
 
-You must be comfortable messing about with databases and python to use this.
+You must be comfortable messing about with databases and python to use this. 
+For running the script with docker please check: [Run Airbnb data collection with Docker](docker/README.md)
 
 To run the airbnb.py scraper you will need to use python 3.4 or later and install the modules listed at the top of the file. The difficult one is lxml: you'll have to go to their web site to get it. It doesn't seem to be in the normal python repositories so if you're on Linux you may get it through an application package manager (apt-get or yum, for example). The Anaconda distribution includes lxml and many other packages, and that's now the one 
 I use.
@@ -60,7 +61,6 @@ This was implemented initially to run bounding-box surveys for countries (maximu
 
 The airbnb.py script works with a PostgreSQL database. You need to have the PostGIS extension installed. The schema is in the file `postgresql/schema_current.sql`. You need to run that file to create the database tables to start with (assuming both your user and database are named `airbnb`).
 
-To run the Airbnb Data Collection with docker please check: [Run Airbnb data collection with Docker](docker/README.md)
 
 For example, if you use psql:
 
