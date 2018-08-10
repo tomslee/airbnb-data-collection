@@ -3,10 +3,12 @@ version: '2'
 services:
 
   airbnbcollector:
-    image: airbnbcollector:latest
+    image: jenslaufer/airbnbcollector:3.4
     container_name: airbnbcollector
     depends_on:
       - postgresql
+    volumes:       
+      - ./configs:/collector/configs
     command: tail -f /dev/null
 
   postgresql:
