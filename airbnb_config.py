@@ -48,6 +48,7 @@ class ABConfig():
         self.SEARCH_DO_LOOP_OVER_ROOM_TYPES = False
         self.HTTP_PROXY_LIST = []
         self.HTTP_PROXY_LIST_COMPLETE = []
+        self.GOOGLE_API_KEY = None
 
         try:
             config = configparser.ConfigParser()
@@ -150,6 +151,14 @@ class ABConfig():
             except:
                 logger.warning(
                     "Missing config file entry: search_rectangle_edge_blur.")
+                logger.warning("For more information, see example.config")
+
+            # account
+            try:
+                self.GOOGLE_API_KEY = config["ACCOUNT"]["google_api_key"]
+            except:
+                logger.warning(
+                    "Missing config file entry: Google API Key. Needed only for geocoding")
                 logger.warning("For more information, see example.config")
 
 
