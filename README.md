@@ -60,6 +60,8 @@ This was implemented initially to run bounding-box surveys for countries (maximu
 
 The airbnb.py script works with a PostgreSQL database. You need to have the PostGIS extension installed. The schema is in the file `postgresql/schema_current.sql`. You need to run that file to create the database tables to start with (assuming both your user and database are named `airbnb`).
 
+To run the Airbnb Data Collection with docker please check: [Run Airbnb data collection with Docker](docker/README.md)
+
 For example, if you use psql:
 
     psql --user airbnb airbnb < postgresql/schema_current.sql
