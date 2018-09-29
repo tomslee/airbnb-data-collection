@@ -19,7 +19,7 @@
    To get a shell on the db container:
 
    ```shell
-   docker exec -it airbnbcollector /bin/bash
+   docker exec -it airbnbcollector-db /bin/bash
    ```
    In this shell you can query the database. The database is initialized on container startup.
 
