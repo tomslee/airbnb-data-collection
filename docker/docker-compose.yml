@@ -9,6 +9,8 @@ services:
       - postgresql
     volumes:       
       - ./configs:/collector/configs
+    environment:
+      USER: airbnb
     command: tail -f /dev/null
 
   postgresql:
