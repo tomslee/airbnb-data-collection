@@ -20,6 +20,8 @@ services:
     volumes:  
       - ../postgresql/:/sql/
       - ./scripts:/docker-entrypoint-initdb.d/  
+    ports:
+      - 5432:5432
     environment:
       POSTGRES_PASSWORD: airbnb
       POSTGRES_USER: airbnb
