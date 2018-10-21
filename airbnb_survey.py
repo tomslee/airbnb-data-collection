@@ -554,11 +554,17 @@ class ABSurveyByBoundingBox(ABSurvey):
             median_lists = {}
             median_lists["latitude"] = []
             median_lists["longitude"] = []
+            # As of October 2018, Airbnb uses items_offset in the URL for each new page,
+            # which is the offset in the number of listings, rather than the
+            # number of pages. Thanks to domatka78 for identifying the change.
+            items_offset = 0
+            room_count = 0
             for section_offset in range(0, self.config.SEARCH_MAX_PAGES):
                 self.search_node_counter += 1
                 # section_offset is the zero-based counter used on the site
                 # page number is convenient for logging, etc
                 page_number = section_offset + 1
+                items_offset += room_count
                 room_count = 0
 
                 if self.config.API_KEY:
@@ -604,7 +610,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                     # params["currency"] = "CAD"
                     # params["locale"] = "en-CA"
                     if section_offset > 0:
-                        params["section_offset"] = str(section_offset)
+                        params["items_offset"] = str(items_offset)
                     # make the http request
                     response = airbnb_ws.ws_request_with_repeats(
                         self.config, self.config.URL_API_SEARCH_ROOT, params)

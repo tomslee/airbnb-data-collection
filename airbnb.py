@@ -460,10 +460,12 @@ def parse_args():
                        by bounding_box""")
     group.add_argument('-s', '--search',
                        metavar='survey_id', type=int,
-                       help='search for rooms using survey survey_id')
+                       help="""search for rooms using survey survey_id (NO
+                       LONGER SUPPORTED)""")
     group.add_argument('-sn', '--search_by_neighborhood',
                        metavar='survey_id', type=int,
-                       help='search for rooms using survey survey_id')
+                       help="""search for rooms using survey survey_id (NO
+                       LONGER SUPPORTED)""")
     group.add_argument('-sb', '--search_by_bounding_box',
                        metavar='survey_id', type=int,
                        help="""search for rooms using survey survey_id,
@@ -477,7 +479,7 @@ def parse_args():
     group.add_argument('-sz', '--search_by_zipcode',
                        metavar='survey_id', type=int,
                        help="""search for rooms using survey_id,
-                       by zipcode""")
+                       by zipcode (NO LONGER SUPPORTED)""")
     group.add_argument('-V', '--version',
                        action='version',
                        version='%(prog)s, version ' +

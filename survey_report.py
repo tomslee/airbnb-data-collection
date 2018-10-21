@@ -48,6 +48,8 @@ def runit(survey_id, details):
 
     for line in log_file_object:
         # Response time raw data for page requests
+        if "DEBUG" in line:
+            pass
         if "Page" in line:
             match = p_page.match(line)
             dt_string = match.group(1)
