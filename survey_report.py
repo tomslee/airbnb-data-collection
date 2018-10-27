@@ -28,6 +28,7 @@ def runit(survey_id, details):
     total_connection_error_count = 0
     node_results_list = []
     page_and_zoom_complete = 0
+    survey_complete = False
     # Collect data from lines in the log
     # 2018-02-07 05:17:02,836 INFO    Searching rectangle: Shared room, guests = 2, prices in [60, 80], zoom factor = 1
     # 2018-02-07 05:17:04,114 INFO    Page 01 returned 01 listings
@@ -83,6 +84,8 @@ def runit(survey_id, details):
         elif "Survey " in line:
             match = p_survey.search(line)
             search_area = match.group(2)
+        elif "Finishing survey" in line:
+            survey_complete = True
         # elif "max_zoom" in line:
             # match = p_max_zoom.search(line)
             # max_zoom = int(match.group(1))
@@ -109,7 +112,7 @@ def runit(survey_id, details):
     for dt_diff in dt_diffs:
         connection_error_buckets[dt_diff[1]] += 1
 
-    # Pages per listing efficiency calculations
+    # New listings per page efficiency calculations
     total_listing_count = 0
     zoom_level_new_rooms = [0] * (max_zoom + 1)
     for node_results in node_results_list:
@@ -143,13 +146,15 @@ def runit(survey_id, details):
     # PRINT REPORT
     #------------------------------------------------------------------------
     # Header
+    survey_complete_string = "completed" if survey_complete else "in progress"
     print("")
     print("*" * 80)
-    print("{}\tSearch results for {}, survey {} on {}{}".format(
+    print("{}\tSearch results for {}, survey {} on {} ({}){}".format(
         printColor.BOLD,
-        search_area, survey_id, survey_start_date, printColor.END))
+        search_area, survey_id, survey_start_date, 
+        survey_complete_string,
+        printColor.END))
     print("")
-
     print("=" * 80)
     print("\t{}New rooms, by zoom level{}".format(printColor.BOLD, printColor.END))
     print("" * 80)
@@ -178,19 +183,19 @@ def runit(survey_id, details):
     print("=" * 80)
     print("\t{}Survey summary{}".format(printColor.BOLD, printColor.END))
     print("")
-    print("\tTotal listing count\t{}".format(total_listing_count))
-    print("\tTotal request count\t{}".format(total_request_count))
-    print("\tRequests per listing\t{0:.2f}".format(float(total_request_count)/total_listing_count))
-    print("\tMean response time\t{0:.1f} seconds".format(mean_response_time))
-    print("\tTotal request time\t{0:.1f} hours"
+    print("\tTotal listing count\t\t{}".format(total_listing_count))
+    print("\tTotal request count\t\t{}".format(total_request_count))
+    print("\tNew listings per request\t{0:.2f}".format(total_listing_count / float(total_request_count)))
+    print("\tMean response time\t\t{0:.1f} seconds".format(mean_response_time))
+    print("\tTotal request time\t\t{0:.1f} hours"
           .format(total_request_count * mean_response_time / 3600.0))
-    print("\tConnection error count\t{}".format(total_connection_error_count))
+    print("\tConnection error count\t\t{}".format(total_connection_error_count))
     if total_connection_error_count > 0:
-        print("\tRequests per error\t{0:.0f}"
+        print("\tRequests per error\t\t{0:.0f}"
               .format(total_request_count / total_connection_error_count))
     else:
-        print("\tRequests per error\tNaN")
-    print("\tExhausted searches\t{}".format(page_and_zoom_complete))
+        print("\tRequests per error\t\tNaN")
+    print("\tExhausted searches\t\t{}".format(page_and_zoom_complete))
     print("")
 
     # Print footer
