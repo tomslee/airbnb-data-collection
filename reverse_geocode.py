@@ -10,9 +10,10 @@ from airbnb_config import ABConfig
 import sys
 import logging
 
-format_string = "%(asctime)-15s %(levelname)-8s%(message)s"
-logging.basicConfig(level=logging.INFO, format=format_string)
-logger = logging.getLogger()
+FORMAT_STRING = "%(asctime)-15s %(levelname)-8s%(message)s"
+logging.basicConfig(level=logging.INFO, format=FORMAT_STRING)
+LOGGER = logging.getLogger()
+STRING_NA = "N/A"
 
 # Suppress informational logging from requests module
 logging.getLogger("requests").setLevel(logging.WARNING)
@@ -23,15 +24,18 @@ class Location():
     def __init__(self, lat_round, lng_round):
         self.lat_round = lat_round
         self.lng_round = lng_round
-        self.neighborhood = None
-        self.sublocality = None
-        self.locality = None
-        self.level2 = None
-        self.level1 = None
-        self.country = None
+        self.neighborhood = STRING_NA
+        self.sublocality = STRING_NA
+        self.locality = STRING_NA
+        self.level2 = STRING_NA
+        self.level1 = STRING_NA
+        self.country = STRING_NA
 
     @classmethod
     def from_db(cls, lat_round, lng_round):
+        """
+        Get a location (address etc) by reading from the database
+        """
         return cls(lat_round, lng_round)
 
 
@@ -49,6 +53,9 @@ class BoundingBox():
 
     @classmethod
     def from_db(cls, config, search_area):
+        """
+        Get a bounding box from the database by reading the search_area.name
+        """
         try:
             cls.search_area = search_area
             conn = config.connect()
@@ -59,19 +66,18 @@ class BoundingBox():
             WHERE name = %s
             """
             cur.execute(sql, (search_area,))
-            # (self.bb_s_lat,
-             # self.bb_n_lat,
-             # self.bb_w_lng,
-             # self.bb_e_lng) = cur.fetchone()
             bounding_box = cur.fetchone()
             cur.close()
             return cls(bounding_box)
         except:
-            logger.exception("Exception in BoundingBox_from_db: exiting")
+            LOGGER.exception("Exception in BoundingBox_from_db: exiting")
             sys.exit()
 
     @classmethod
     def from_google(cls, config, search_area):
+        """
+        Get a bounding box from Google
+        """
         try:
             gmaps = googlemaps.Client(key=config.GOOGLE_API_KEY)
             results = gmaps.geocode((search_area))
@@ -82,17 +88,20 @@ class BoundingBox():
                             bounds["northeast"]["lng"],)
             return cls(bounding_box)
         except:
-            logger.exception("Exception in BoundingBox_from_google: exiting")
+            LOGGER.exception("Exception in BoundingBox_from_google: exiting")
             sys.exit()
 
     @classmethod
     def from_args(cls, config, args):
+        """
+        Get a bounding box from the command line
+        """
         try:
             bounding_box = (args.bb_s_lat, args.bb_n_lat,
                             args.bb_w_lng, args.bb_e_lng)
             return cls(bounding_box)
         except:
-            logger.exception("Exception in BoundingBox_from_args: exiting")
+            LOGGER.exception("Exception in BoundingBox_from_args: exiting")
             sys.exit()
 
 def select_lat_lng(config, bounding_box):
@@ -125,7 +134,7 @@ def select_lat_lng(config, bounding_box):
         location = Location(lat_round, lng_round)
         return location
     except Exception: 
-        logger.exception("Exception in select_lat_lng: exiting")
+        LOGGER.exception("Exception in select_lat_lng: exiting")
         sys.exit()
 
 
@@ -146,26 +155,27 @@ def update_location(config, location):
         country = %s
         WHERE lat_round = %s AND lng_round = %s
         """
-        update_args = ( location.neighborhood,
-                location.sublocality,
-                location.locality,
-                location.level2,
-                location.level1,
-                location.country,
-                location.lat_round,
-                location.lng_round,
-               )
+        update_args = (location.neighborhood,
+                       location.sublocality,
+                       location.locality,
+                       location.level2,
+                       location.level1,
+                       location.country,
+                       location.lat_round,
+                       location.lng_round,
+                      )
+        LOGGER.debug(update_args)
         cur.execute(sql, update_args)
         cur.close()
         conn.commit()
         return True
     except:
-        logger.exception("Exception in update_location")
+        LOGGER.exception("Exception in update_location")
         return False
 
 
 def reverse_geocode(config, location):
-    """ 
+    """
     Return address information from the Google API as a Location object for a given lat lng
     """
     gmaps = googlemaps.Client(key=config.GOOGLE_API_KEY)
@@ -185,33 +195,33 @@ def reverse_geocode(config, location):
     #  In practice, you may wish to only return the first result (results[0])
 
     for result in results:
-        if (location.neighborhood and
-                location.sublocality and
-                location.locality and
-                location.level2 and
-                location.level1 and
-                location.country):
+        if (location.neighborhood != STRING_NA and
+                location.sublocality != STRING_NA and
+                location.locality != STRING_NA and
+                location.level2 != STRING_NA and
+                location.level1 != STRING_NA and
+                location.country != STRING_NA):
             break
         address_components = result['address_components']
         for address_component in address_components:
-            if (location.neighborhood is None
+            if (location.neighborhood == STRING_NA
                     and "neighborhood" in address_component["types"]):
                 location.neighborhood = address_component["long_name"]
-            elif (location.sublocality is None
+            elif (location.sublocality == STRING_NA
                   and "sublocality" in address_component["types"]):
                 location.sublocality = address_component["long_name"]
-            elif (location.locality is None
+            elif (location.locality == STRING_NA
                   and "locality" in address_component["types"]):
                 location.locality = address_component["long_name"]
-            elif (location.level2 is None
+            elif (location.level2 == STRING_NA
                   and "administrative_area_level_2" in
                   address_component["types"]):
                 location.level2 = address_component["long_name"]
-            elif (location.level1 is None
+            elif (location.level1 == STRING_NA
                   and "administrative_area_level_1" in
                   address_component["types"]):
                 location.level1 = address_component["long_name"]
-            elif (location.country is None
+            elif (location.country == STRING_NA
                   and "country" in address_component["types"]):
                 location.country = address_component["long_name"]
     return location
@@ -260,10 +270,15 @@ def main():
         # bb = BoundingBox.from_db(config, search_area)
         # print(bb.bb_s_lat, bb.bb_n_lat, bb.bb_w_lng, bb.bb_e_lng)
         bounding_box = BoundingBox.from_google(config, search_area)
-        logger.info("Bounding box for %s = (%s, %s, %s, %s)",
+        LOGGER.info("Bounding box for %s from Google = (%s, %s, %s, %s)",
                     search_area,
                     bounding_box.bb_s_lat, bounding_box.bb_n_lat,
                     bounding_box.bb_w_lng, bounding_box.bb_e_lng)
+        # bounding_box = BoundingBox.from_db(config, search_area)
+        # LOGGER.info("Bounding box for %s from DB = (%s, %s, %s, %s)",
+                    # search_area,
+                    # bounding_box.bb_s_lat, bounding_box.bb_n_lat,
+                    # bounding_box.bb_w_lng, bounding_box.bb_e_lng)
     if args.bb_n_lat:
         bounding_box = BoundingBox.from_args(config, args)
     if not count:
@@ -271,10 +286,14 @@ def main():
     for lookup in range(1, count):
         location = select_lat_lng(config, bounding_box)
         if location is None:
-            logger.info("No more locations")
+            LOGGER.info("No more locations")
             sys.exit(0)
+        else:
+            LOGGER.debug(location)
         location = reverse_geocode(config, location)
-        logger.debug(
+        if not location.country: 
+            location.country = "UNKNOWN"
+        LOGGER.debug(
             "nbhd={}, subloc={}, loc={}, l2={}, l1={}, country={}."
             .format(
                 location.neighborhood,
@@ -286,11 +305,11 @@ def main():
             )
         success = update_location(config, location)
         if success:
-            logger.info("Update succeeded: %s, %s: %s of %s",
+            LOGGER.info("Update succeeded: %s, %s in %s: %s of %s",
                         location.lat_round, location.lng_round,
-                        lookup, count)
+                        location.country, lookup, count)
         else:
-            logger.warn("Update failed: %s, %s: %s of %s",
+            LOGGER.warn("Update failed: %s, %s: %s of %s",
                         location.lat_round, location.lng_round,
                         lookup, count)
 
