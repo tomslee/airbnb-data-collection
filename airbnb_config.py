@@ -187,7 +187,7 @@ class ABConfig():
                 self.connection.set_client_encoding('UTF8')
             return self.connection
         except psycopg2.OperationalError as pgoe:
-            logger.error(pgoe.message)
+            logger.error(pgoe.pgerror)
             raise
         except Exception:
             logger.error("Failed to connect to database.")

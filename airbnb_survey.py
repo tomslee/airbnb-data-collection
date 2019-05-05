@@ -31,6 +31,7 @@ class Timer:
         self.end = time.clock()
         self.interval = self.end - self.start
 
+
 class ABSurvey():
     """
     Class to represent a generic survey, using one of several methods.
@@ -573,42 +574,49 @@ class ABSurveyByBoundingBox(ABSurvey):
                     logger.debug("API key found: using API search at %s",
                                  self.config.URL_API_SEARCH_ROOT)
                     params = {}
-                    # params["version"] = "1.3.5"
                     params["_format"] = "for_explore_search_web"
-                    params["experiences_per_grid"] = str(20)
-                    params["items_per_grid"] = str(18)
-                    params["guidebooks_per_grid"] = str(20)
-                    # params["auto_ib"] = str(True)
-                    # params["fetch_filters"] = str(True)
-                    # params["has_zero_guest_treatment"] = str(True)
-                    # params["is_guided_search"] = str(True)
-                    # params["is_new_cards_experiment"] = str(True)
-                    # params["luxury_pre_launch"] = str(False)
-                    # params["query_understanding_enabled"] = str(True)
-                    # params["show_groupings"] = str(True)
-                    # params["supports_for_you_v3"] = str(True)
-                    params["timezone_offset"] = "-240"
-                    params["metadata_only"] = str(False)
-                    params["is_standard_search"] = str(True)
-                    params["refinement_paths[]"] = "/homes"
-                    params["selected_tab_id"] = "home_tab"
+                    params["_intents"] = "p1"
+                    params["adults"] = str(0)
                     params["allow_override[]"] = ""
+                    params["auto_ib"] = str(True)
+                    params["children"] = str(0)
+                    params["client_session_id"] = self.config.CLIENT_SESSION_ID
+                    # params["currency"] = "CAD"
+                    params["experiences_per_grid"] = str(20)
+                    params["federated_search_session_id"] = "45de42ea-60d4-49a9-9335-9e52789cd306"
+                    params["fetch_filters"] = str(True)
+                    params["guests"] = str(0)
+                    params["guidebooks_per_grid"] = str(20)
+                    params["has_zero_guest_treatment"] = str(True)
+                    params["infants"] = str(0)
+                    params["is_guided_search"] = str(True)
+                    params["is_new_cards_experiment"] = str(True)
+                    params["is_standard_search"] = str(True)
+                    params["items_offset"] = str(18)
+                    params["items_per_grid"] = str(18)
+                    # params["locale"] = "en-CA"
+                    params["key"] = self.config.API_KEY
+                    params["luxury_pre_launch"] = str(False)
+                    params["metadata_only"] = str(False)
+                    # params["query"] = "Lisbon Portugal"
+                    params["query_understanding_enabled"] = str(True)
+                    params["refinement_paths[]"] = "/homes"
                     if self.config.SEARCH_DO_LOOP_OVER_ROOM_TYPES:
                         params["room_types[]"] = room_type
+                    params["search_type"] = "PAGINATION"
+                    params["search_by_map"] = str(True)
+                    params["section_offset"] = section_offset
+                    params["selected_tab_id"] = "home_tab"
+                    params["show_groupings"] = str(True)
+                    params["supports_for_you_v3"] = str(True)
+                    params["timezone_offset"] = "-240"
                     params["ne_lat"] = str(rectangle[0])
                     params["ne_lng"] = str(rectangle[1])
                     params["sw_lat"] = str(rectangle[2])
                     params["sw_lng"] = str(rectangle[3])
-                    params["search_by_map"] = str(True)
-                    # params["screen_size"] = "medium"
-                    # params["_intents"] = "p1"
-                    params["key"] = self.config.API_KEY
-                    # params["client_session_id"] = self.config.CLIENT_SESSION_ID
-                    # params["zoom"] = str(True)
-                    # params["federated_search_session_id"] = "45de42ea-60d4-49a9-9335-9e52789cd306"
-                    # params["query"] = "Lisbon Portugal"
-                    # params["currency"] = "CAD"
-                    # params["locale"] = "en-CA"
+                    params["screen_size"] = "medium"
+                    params["zoom"] = str(True)
+                    # params["version"] = "1.4.8"
                     if section_offset > 0:
                         params["items_offset"] = str(items_offset)
                     # make the http request
