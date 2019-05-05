@@ -703,12 +703,12 @@ class ABSurveyByBoundingBox(ABSurvey):
                                        "go to next page")
                         return None
                 # Now we have the json. It includes a list of 18 or fewer listings
-                if logger.isEnabledFor(logging.DEBUG):
-                    json_file = open(
-                        "json_listing_{}.json".format(self.search_node_counter),
-                        mode="w", encoding="utf-8")
-                    json_file.write(json.dumps(json_doc, indent=4, sort_keys=True))
-                    json_file.close()
+                # if logger.isEnabledFor(logging.DEBUG):
+                    # json_file = open(
+                        # "json_listing_{}.json".format(self.search_node_counter),
+                        # mode="w", encoding="utf-8")
+                    # json_file.write(json.dumps(json_doc, indent=4, sort_keys=True))
+                    # json_file.close()
                 # Steal a function from StackOverflow which searches for items
                 # with a given list of keys (in this case just one: "listing")
                 # https://stackoverflow.com/questions/14048948/how-to-find-a-particular-json-value-by-key
