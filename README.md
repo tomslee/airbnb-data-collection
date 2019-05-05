@@ -8,6 +8,10 @@ Sometimes the Airbnb site refuses repeated requests. I run the script using a nu
 
 ## Status and recent changes
 
+### May 2019 (3.6)
+
+For several months this script has not been working properly, which is an indication of its likely future state. One of the changes to Airbnb's site design led to a failure to paginate properly through the listings of each query, so that additional listings would be added only very slowly. This problem is now solved.
+
 ### June 2018 (3.4)
 
 As of April 2018, searches of the Airbnb web site only return listings with available booking dates in the near future (I do not know the precise criterion). In some cases, this leads to a 20% or 20% reduction in the number of listings obtained in a search area compared with earlier results.
