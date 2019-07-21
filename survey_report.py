@@ -79,6 +79,8 @@ def runit(survey_id, details):
         # Request error
         elif "WARNING" in line and "connectionError" in line:
             total_connection_error_count += 1
+        elif "WARNING" in line and "HTTP status" in line:
+            total_connection_error_count += 1
         # For complete log files (one run, beginning to end), these items are in the header
         # Put them at the end of the ifs as they are rarely encountered
         elif "Survey " in line:
@@ -189,7 +191,7 @@ def runit(survey_id, details):
     print("\tMean response time\t\t{0:.1f} seconds".format(mean_response_time))
     print("\tTotal request time\t\t{0:.1f} hours"
           .format(total_request_count * mean_response_time / 3600.0))
-    print("\tConnection error count\t\t{}".format(total_connection_error_count))
+    print("\tHTTP request error count\t{}".format(total_connection_error_count))
     if total_connection_error_count > 0:
         print("\tRequests per error\t\t{0:.0f}"
               .format(total_request_count / total_connection_error_count))
