@@ -578,7 +578,7 @@ class ABSurveyByBoundingBox(ABSurvey):
                     params["_intents"] = "p1"
                     params["adults"] = str(0)
                     params["allow_override[]"] = ""
-                    params["auto_ib"] = str(True)
+                    params["auto_ib"] = str(False)
                     params["children"] = str(0)
                     params["client_session_id"] = self.config.CLIENT_SESSION_ID
                     # params["currency"] = "CAD"
@@ -617,9 +617,10 @@ class ABSurveyByBoundingBox(ABSurvey):
                     params["screen_size"] = "medium"
                     params["zoom"] = str(True)
                     # params["version"] = "1.4.8"
-                    if section_offset > 0:
-                        params["items_offset"]   = str(18*items_offset)
-                        params["section_offset"] = str(7)
+                    if items_offset > 0:
+                        params["items_offset"]   = str(items_offset)
+                        # params["items_offset"]   = str(18*items_offset)
+                        params["section_offset"]   = str(8)
                     # make the http request
                     response = airbnb_ws.ws_request_with_repeats(
                         self.config, self.config.URL_API_SEARCH_ROOT, params)
@@ -638,6 +639,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                     # Web page (returns HTML)
                     logger.debug("No API key found in config file: using web search at %s",
                                  self.config.URL_API_SEARCH_ROOT)
+                    logger.warning("These results are probably wrong")
+                    logger.warning("See README for how to set an API key")
                     params = {}
                     params["source"] = "filter"
                     params["_format"] = "for_explore_search_web"
