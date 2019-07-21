@@ -1,5 +1,7 @@
 # Airbnb web site scraper
 
+I have been unable to maintain this script in a reasonable state for some time now, but I know there are people out there using it. If anybody wants to take over maintenance / ownership, I'd be very happy to help make the transition as easy as possible.
+
 ## Disclaimers
 
 The script scrapes the Airbnb web site to collect data about the shape of the company's business. No guarantees are made about the quality of data obtained using this script, statistically or about an individual page. So please check your results.
@@ -7,6 +9,11 @@ The script scrapes the Airbnb web site to collect data about the shape of the co
 Sometimes the Airbnb site refuses repeated requests. I run the script using a number of proxy IP addresses to avoid being turned away, and that costs money. I am afraid that I cannot help in finding or working with proxy IP services.
 
 ## Status and recent changes
+
+### July 2019 (3.6)
+
+There are continued problems getting the script to work with new AirBnB page layouts. The change
+that affects this script most is reflected in airbnb_survey.py, around line 620. The items_offset values get incremented with each new page of a search, and it used to be that section_offset would change too. If you are having problems and know how to track down request URL's in a browser, do try different settings for these.
 
 ### May 2019 (3.6)
 
