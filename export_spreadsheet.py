@@ -171,9 +171,9 @@ def export_city_data(ab_config, city, project, format, start_date):
     logging.info(" ---- Surveys: " + ', '.join(str(id) for id in survey_ids))
     conn = ab_config.connect()
 
+    city_view = city_view_name(ab_config, city)
     # survey_ids = [11, ]
     if project == "gis":
-        city_view = city_view_name(ab_config, city)
         sql = """
         select room_id, host_id, room_type,
             borough, neighborhood,
@@ -208,7 +208,8 @@ def export_city_data(ab_config, city, project, format, start_date):
             price, minstay,
             latitude, longitude,
             last_modified as collected
-        from survey_room(%(survey_id)s)
+        from room
+        where survey_id=%(survey_id)s
         order by room_id
         """
 
@@ -222,7 +223,7 @@ def export_city_data(ab_config, city, project, format, start_date):
             csvfile = csvfile.lower()
             df = pd.read_sql(sql, conn,
                              # index_col="room_id",
-                             params={"survey_id": survey_id.item()}
+                             params={"survey_id": survey_id}
                              )
             logging.info("CSV export: survey " +
                          str(survey_id) + " to " + csvfile)
@@ -240,7 +241,7 @@ def export_city_data(ab_config, city, project, format, start_date):
             logging.info("Survey " + str(survey_id) + " for " + city)
             df = pd.read_sql(sql, conn,
                              # index_col="room_id",
-                             params={"survey_id": survey_id.item()}
+                             params={"survey_id": survey_id}
                              )
             if len(df) > 0:
                 logging.info("Survey " + str(survey_id) +

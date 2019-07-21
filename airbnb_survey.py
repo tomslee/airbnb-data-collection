@@ -618,7 +618,8 @@ class ABSurveyByBoundingBox(ABSurvey):
                     params["zoom"] = str(True)
                     # params["version"] = "1.4.8"
                     if section_offset > 0:
-                        params["items_offset"] = str(items_offset)
+                        params["items_offset"]   = str(18*items_offset)
+                        params["section_offset"] = str(7)
                     # make the http request
                     response = airbnb_ws.ws_request_with_repeats(
                         self.config, self.config.URL_API_SEARCH_ROOT, params)
