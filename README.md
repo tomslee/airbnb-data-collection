@@ -1,5 +1,7 @@
 # Airbnb web site scraper
 
+*I am no longer maintaining this script.*
+
 I have been unable to maintain this script in a reasonable state for some time now, but I know there are people out there using it. If anybody wants to take over maintenance / ownership, I'd be very happy to help make the transition as easy as possible.
 
 ## Disclaimers
