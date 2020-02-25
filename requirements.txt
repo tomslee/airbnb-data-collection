@@ -62,7 +62,7 @@ pytz==2016.7
 PyYAML==3.12
 pyzmq==16.0.1
 qtconsole==4.1.1
-requests==2.11.1
+requests==2.20.0
 rise==4.0.0b1
 rope-py3k==0.9.4.post1
 s3transfer==0.1.10
