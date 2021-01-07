@@ -1,4 +1,4 @@
-lxml==4.2.4
+lxml==4.6.2
 psycopg2-binary==2.7.5
 configparser==3.5.0
 bs4==0.0.1

@@ -30,7 +30,7 @@ jupyter-client==4.4.0
 jupyter-console==4.0.3
 jupyter-core==4.2.0
 logilab-common==0.63.2
-lxml==3.4.4
+lxml==4.6.2
 MarkupSafe==0.23
 matplotlib==1.4.3
 mistune==0.8.1
