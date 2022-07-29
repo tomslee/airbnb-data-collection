@@ -33,7 +33,7 @@ logilab-common==0.63.2
 lxml==3.4.4
 MarkupSafe==0.23
 matplotlib==1.4.3
-mistune==0.8.1
+mistune==2.0.3
 nb-anacondacloud==1.2.0
 nb-conda==2.0.0
 nb-conda-kernels==2.0.0
