@@ -8,7 +8,7 @@ beautifulsoup4==4.6.0
 boto==2.45.0
 boto3==1.4.3
 botocore==1.4.90
-certifi==2015.9.6.2
+certifi==2022.12.7
 click==6.2
 clyent==1.2.2
 colorama==0.3.7
